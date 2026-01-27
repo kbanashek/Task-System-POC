@@ -1,4 +1,3 @@
-import { Hub } from "@aws-amplify/core";
 import { DataStore, OpType } from "@aws-amplify/datastore";
 import { OperationSource } from "@constants/operationSource";
 import { TaskAnswer } from "@models/index";
@@ -6,8 +5,6 @@ import {
   CreateTaskAnswerInput,
   UpdateTaskAnswerInput,
 } from "@task-types/TaskAnswer";
-import { resetDataStore } from "@utils/datastore/dataStoreReset";
-import { isDataStoreModelDeleted } from "@utils/datastore/isDataStoreModelDeleted";
 import { logErrorWithDevice, logWithDevice } from "@utils/logging/deviceLogger";
 import { getServiceLogger } from "@utils/logging/serviceLogger";
 
@@ -116,14 +113,14 @@ export class TaskAnswerService {
     );
 
     const filterNotDeleted = (items: TaskAnswer[]): TaskAnswer[] => {
-      return items.filter(item => !isDataStoreModelDeleted(item));
+      return items.filter(item => (item as any)?._deleted !== true);
     };
 
     // Track the last known sync state from observeQuery
     let lastKnownSyncState = false;
 
-    const querySubscription = DataStore.observeQuery(TaskAnswer).subscribe({
-      next: snapshot => {
+    const querySubscription = DataStore.observeQuery(TaskAnswer).subscribe(
+      snapshot => {
         const { items, isSynced } = snapshot;
         const visibleItems = filterNotDeleted(items);
 
@@ -142,22 +139,22 @@ export class TaskAnswerService {
 
         callback(visibleItems, isSynced);
       },
-      error: (error: unknown) => {
+      error => {
         logErrorWithDevice(
           "TaskAnswerService",
           "DataStore subscription error",
           error
         );
         callback([], false);
-      },
-    });
+      }
+    );
 
     // Also observe DELETE operations to ensure deletions trigger updates
-    const deleteObserver = DataStore.observe(TaskAnswer).subscribe({
-      next: msg => {
+    const deleteObserver = DataStore.observe(TaskAnswer).subscribe(
+      msg => {
         if (msg.opType === OpType.DELETE) {
-          const element = msg.element;
-          const isLocalDelete = isDataStoreModelDeleted(element);
+          const element = msg.element as any;
+          const isLocalDelete = element?._deleted === true;
           const source = isLocalDelete
             ? OperationSource.LOCAL
             : OperationSource.REMOTE_SYNC;
@@ -166,12 +163,9 @@ export class TaskAnswerService {
             "TaskAnswerService",
             `DELETE operation detected (${source})`,
             {
-              taskAnswerId: element.id,
-              taskInstanceId: element.taskInstanceId,
-              deleted:
-                typeof element === "object" && element !== null
-                  ? Reflect.get(element as object, "_deleted")
-                  : undefined,
+              taskAnswerId: element?.id,
+              taskId: element?.taskId,
+              deleted: element?._deleted,
               operationType: msg.opType,
             }
           );
@@ -199,10 +193,10 @@ export class TaskAnswerService {
             });
         }
       },
-      error: (error: unknown) => {
+      error => {
         logErrorWithDevice("TaskAnswerService", "DELETE observer error", error);
-      },
-    });
+      }
+    );
 
     return {
       unsubscribe: () => {
@@ -243,18 +237,7 @@ export class TaskAnswerService {
 
   static async clearDataStore(): Promise<void> {
     try {
-      await resetDataStore(
-        { dataStore: DataStore, hub: Hub },
-        {
-          mode: "clearAndRestart",
-          waitForOutboxEmpty: true,
-          outboxTimeoutMs: 2000,
-          stopTimeoutMs: 5000,
-          clearTimeoutMs: 5000,
-          startTimeoutMs: 5000,
-          proceedOnStopTimeout: true,
-        }
-      );
+      await DataStore.clear();
     } catch (error) {
       getServiceLogger("TaskAnswerService").error(
         "Error clearing DataStore",

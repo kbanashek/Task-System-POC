@@ -3,10 +3,10 @@
  */
 
 import * as FileSystemUtils from "@utils/system/fileSystemUtils";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 // Mock expo-file-system
-jest.mock("expo-file-system", () => ({
+jest.mock("expo-file-system/legacy", () => ({
   documentDirectory: "file:///mock/documents/",
   getInfoAsync: jest.fn(),
   makeDirectoryAsync: jest.fn(),

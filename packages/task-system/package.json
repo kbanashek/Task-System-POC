@@ -3,15 +3,8 @@
   "version": "0.0.2",
   "description": "Orion Task System",
   "license": "ClinicalInk Private",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./package.json": "./package.json"
-  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "files": [
     "dist"
   ],
@@ -22,7 +15,6 @@
   },
   "peerDependencies": {
     "@aws-amplify/datastore": ">=5",
-    "expo-file-system": ">=18",
     "@react-native-community/datetimepicker": ">=8",
     "@react-native-community/slider": ">=4",
     "@react-navigation/native": ">=6",
@@ -30,24 +22,17 @@
     "react": ">=18",
     "react-native": ">=0.72",
     "react-native-safe-area-context": ">=4",
-    "react-native-screens": ">=3",
-    "zod": ">=3"
+    "react-native-screens": ">=3"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/update-build-timestamp.js",
+    "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch",
-    "alias:watch": "tsc-alias -p tsconfig.build.json -w",
-    "watch:timestamp": "node scripts/watch-build-timestamp.js",
-    "clean": "rm -rf dist",
-    "smoke:dist": "node -e \"const fs=require('fs'); const path=require('path'); const pkg=require('./package.json'); const base=process.cwd(); const main=pkg.main; const types=pkg.types; const mainPath=path.resolve(base, main); const typesPath=path.resolve(base, types); if(!main||!types){console.error('Missing main/types in package.json'); process.exit(1);} if(!fs.existsSync(mainPath)){console.error('Missing main file:', main); process.exit(1);} if(!fs.existsSync(typesPath)){console.error('Missing types file:', types); process.exit(1);} console.log('dist entrypoints OK:', main, types);\"",
-    "verify:dist": "yarn build && yarn smoke:dist"
+    "clean": "rm -rf dist"
   },
   "devDependencies": {
     "@react-native-async-storage/async-storage": "^2.1.0",
     "@storybook/addon-ondevice-actions": "^7.6.20",
     "@storybook/addon-ondevice-controls": "^7.6.20",
-    "@storybook/react-native": "^7.6.20",
-    "tsc-alias": "^1.8.10",
-    "zod": "^3.24.1"
+    "@storybook/react-native": "^7.6.20"
   }
 }

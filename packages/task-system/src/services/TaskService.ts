@@ -1,4 +1,3 @@
-import { Hub } from "@aws-amplify/core";
 import { DataStore } from "@aws-amplify/datastore";
 import { Task as DataStoreTask } from "@models/index";
 import {
@@ -9,7 +8,6 @@ import {
   TaskType,
   UpdateTaskInput,
 } from "@task-types/Task";
-import { resetDataStore } from "@utils/datastore/dataStoreReset";
 import { dataSubscriptionLogger } from "@utils/logging/dataSubscriptionLogger";
 import { logWithDevice } from "@utils/logging/deviceLogger";
 import { getServiceLogger } from "@utils/logging/serviceLogger";
@@ -24,7 +22,6 @@ import {
 type TaskUpdateData = Omit<UpdateTaskInput, "id" | "_version">;
 type DataStoreTaskInput = ConstructorParameters<typeof DataStoreTask>[0];
 
-/** Service for managing Task entities via AWS Amplify DataStore. */
 export class TaskService {
   /**
    * Create a new Task
@@ -34,14 +31,14 @@ export class TaskService {
    */
   static async createTask(input: CreateTaskInput): Promise<Task> {
     const logger = getServiceLogger("TaskService");
-    // Validate input before creating task
-    const validatedInput = validateOrThrow(
-      createTaskSchema,
-      input,
-      "Task creation"
-    );
-
     try {
+      // Validate input before creating task
+      const validatedInput = validateOrThrow(
+        createTaskSchema,
+        input,
+        "Task creation"
+      );
+
       logger.info(
         "Creating task via AWS DataStore",
         { title: validatedInput.title },
@@ -61,50 +58,6 @@ export class TaskService {
       );
       return task as Task;
     } catch (error) {
-      // Check if this is a ConditionalCheckFailedException (task already exists)
-      if (
-        error instanceof Error &&
-        error.message.includes("ConditionalCheckFailedException")
-      ) {
-        // In multi-device sync scenarios, tasks may already exist when created concurrently
-        // This is expected behavior, not an error - log as expected sync behavior
-        logger.info(
-          "Task creation skipped (already exists in sync)",
-          {
-            title: validatedInput.title,
-            errorType: "ConditionalCheckFailedException",
-          },
-          "DATA",
-          "🔄"
-        );
-        // Try to query the existing task and return it
-        try {
-          const existingTasks = await DataStore.query(
-            DataStoreTask,
-            t =>
-              t.title.eq(validatedInput.title) &&
-              t.startTimeInMillSec.eq(validatedInput.startTimeInMillSec)
-          );
-          if (existingTasks.length > 0) {
-            logger.info(
-              "Found existing task after ConditionalCheckFailedException",
-              { id: existingTasks[0].id },
-              "DATA",
-              "🔄"
-            );
-            return existingTasks[0] as Task;
-          }
-        } catch (queryError) {
-          logger.warn(
-            "Could not query existing task after ConditionalCheckFailedException",
-            { queryError },
-            "DATA"
-          );
-        }
-        // If we can't find the existing task, re-throw the original error
-        throw error;
-      }
-
       logger.error("Failed to create task in AWS DataStore", error, "DATA");
       throw error;
     }
@@ -122,25 +75,19 @@ export class TaskService {
       validateOrThrow(taskFiltersSchema, filters, "Task filters");
     }
     try {
-      const queryResult = await DataStore.query(DataStoreTask);
-      let tasks: Task[] = Array.isArray(queryResult)
-        ? (queryResult as Task[])
-        : [];
+      let tasks = await DataStore.query(DataStoreTask);
 
       // Apply filters
       if (filters) {
-        const statusFilter = filters.status ?? [];
-        const taskTypeFilter = filters.taskType ?? [];
-
         if (filters.status && filters.status.length > 0) {
           tasks = tasks.filter(task =>
-            statusFilter.includes(task.status as TaskStatus)
+            filters.status!.includes(task.status as TaskStatus)
           );
         }
 
         if (filters.taskType && filters.taskType.length > 0) {
           tasks = tasks.filter(task =>
-            taskTypeFilter.includes(task.taskType as TaskType)
+            filters.taskType!.includes(task.taskType as TaskType)
           );
         }
 
@@ -156,19 +103,7 @@ export class TaskService {
 
         if (filters.dateFrom || filters.dateTo) {
           tasks = tasks.filter(task => {
-            // Episodic tasks don't have startTimeInMillSec - always include them
-            if (!task.startTimeInMillSec) {
-              // Check if it's episodic - if so, always include
-              const taskTypeStr = String(task.taskType).toUpperCase();
-              if (
-                taskTypeStr === "EPISODIC" ||
-                task.taskType === TaskType.EPISODIC
-              ) {
-                return true;
-              }
-              // Non-episodic tasks without startTimeInMillSec are excluded
-              return false;
-            }
+            if (!task.startTimeInMillSec) return false;
             const taskDate = new Date(task.startTimeInMillSec);
             if (filters.dateFrom && taskDate < filters.dateFrom) return false;
             if (filters.dateTo && taskDate > filters.dateTo) return false;
@@ -237,27 +172,11 @@ export class TaskService {
         throw new Error(`Task with id ${id} not found`);
       }
 
-      console.warn(`[TaskService] ☁️ UPDATING TASK IN DATASTORE`, {
-        id,
-        originalStatus: original.status,
-        newStatus: validatedData.status,
-        title: original.title,
-        changes: Object.keys(validatedData),
-        timestamp: new Date().toISOString(),
-      });
-
       const updated = await DataStore.save(
         DataStoreTask.copyOf(original, updated => {
           Object.assign(updated, validatedData);
         })
       );
-
-      console.warn(`[TaskService] ✅ TASK UPDATED SUCCESSFULLY IN DATASTORE`, {
-        id: updated.id,
-        status: updated.status,
-        title: updated.title,
-        timestamp: new Date().toISOString(),
-      });
 
       logger.info(
         "Task updated successfully in AWS DataStore",
@@ -291,15 +210,7 @@ export class TaskService {
       logger.info("Deleting task from AWS DataStore", { id }, "DATA", "☁️");
       const toDelete = await DataStore.query(DataStoreTask, id);
       if (!toDelete) {
-        // In multi-device sync scenarios, tasks may be deleted by other devices
-        // This is expected behavior, not an error
-        logger.info(
-          "Task not found for deletion (likely already deleted by another device)",
-          { id },
-          "DATA",
-          "🔄"
-        );
-        return; // Gracefully handle - task already gone
+        throw new Error(`Task with id ${id} not found`);
       }
 
       await DataStore.delete(toDelete);
@@ -310,20 +221,6 @@ export class TaskService {
         "☁️"
       );
     } catch (error) {
-      // Check if this is a ConditionalCheckFailedException (task already deleted)
-      if (
-        error instanceof Error &&
-        error.message.includes("ConditionalCheckFailedException")
-      ) {
-        logger.info(
-          "Task deletion conflict - task already deleted by another device/process",
-          { id, errorType: "ConditionalCheckFailedException" },
-          "DATA",
-          "🔄"
-        );
-        return; // Expected in multi-device sync scenarios
-      }
-
       logger.error("Failed to delete task from AWS DataStore", error, "DATA");
       throw error;
     }
@@ -357,26 +254,12 @@ export class TaskService {
           initialTasks.length
         );
         // Call callback with initial data - assume synced if we got data
-        try {
-          callback(initialTasks as Task[], initialTasks.length > 0);
-        } catch (callbackError: unknown) {
-          logger.error(
-            "Task subscription callback crashed (initial query)",
-            callbackError
-          );
-        }
+        callback(initialTasks as Task[], initialTasks.length > 0);
       })
       .catch(err => {
         logger.error("Initial AWS DataStore query failed", err);
         // Still set up subscription even if initial query fails
-        try {
-          callback([], false);
-        } catch (callbackError: unknown) {
-          logger.error(
-            "Task subscription callback crashed (initial query failure)",
-            callbackError
-          );
-        }
+        callback([], false);
       });
 
     // Use observeQuery for the main subscription (filters out deleted items automatically)
@@ -397,26 +280,12 @@ export class TaskService {
           );
         }
 
-        try {
-          callback(items as Task[], isSynced);
-        } catch (callbackError: unknown) {
-          logger.error(
-            "Task subscription callback crashed (observeQuery)",
-            callbackError
-          );
-        }
+        callback(items as Task[], isSynced);
       },
       error => {
         logger.error("AWS DataStore subscription error", error);
         // Provide empty array to prevent app crash
-        try {
-          callback([], false);
-        } catch (callbackError: unknown) {
-          logger.error(
-            "Task subscription callback crashed (observeQuery error)",
-            callbackError
-          );
-        }
+        callback([], false);
       }
     );
 
@@ -562,18 +431,7 @@ export class TaskService {
     const logger = getServiceLogger("TaskService");
     try {
       logger.info("Clearing AWS DataStore", undefined, "DATA", "☁️");
-      await resetDataStore(
-        { dataStore: DataStore, hub: Hub },
-        {
-          mode: "clearAndRestart",
-          waitForOutboxEmpty: true,
-          outboxTimeoutMs: 2000,
-          stopTimeoutMs: 5000,
-          clearTimeoutMs: 5000,
-          startTimeoutMs: 5000,
-          proceedOnStopTimeout: true,
-        }
-      );
+      await DataStore.clear();
       logger.info(
         "AWS DataStore cleared successfully",
         undefined,

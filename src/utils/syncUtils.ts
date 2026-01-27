@@ -4,14 +4,38 @@
  */
 
 import { DataStore } from "@aws-amplify/datastore";
-import { Hub } from "@aws-amplify/core";
-import {
-  logWithDevice,
-  logErrorWithDevice,
-  resetDataStore,
-} from "@orion/task-system";
+import { logWithDevice, logErrorWithDevice } from "@orion/task-system";
 
-const getResetDeps = () => ({ dataStore: DataStore, hub: Hub });
+/**
+ * Wrapper around DataStore.stop() with timeout protection
+ *
+ * CRITICAL: DataStore.stop() can hang indefinitely in Amplify v5/v6 if:
+ * - There are pending mutations in the outbox
+ * - Sync subscriptions are in a bad state
+ * - Network is unreliable
+ *
+ * This wrapper adds a 5-second timeout to prevent infinite hangs.
+ * If DataStore.stop() doesn't complete in 5 seconds, we proceed anyway.
+ *
+ * @param timeoutMs - Timeout in milliseconds (default: 5000ms)
+ * @returns Promise that resolves when stop completes or timeout expires
+ */
+async function stopDataStoreWithTimeout(
+  timeoutMs: number = 5000
+): Promise<void> {
+  return Promise.race([
+    DataStore.stop(),
+    new Promise<void>(resolve => {
+      setTimeout(() => {
+        logWithDevice(
+          "syncUtils",
+          `⚠️ DataStore.stop() timed out after ${timeoutMs}ms - proceeding anyway`
+        );
+        resolve();
+      }, timeoutMs);
+    }),
+  ]);
+}
 
 /**
  * Manually trigger a full sync of all DataStore models
@@ -29,16 +53,21 @@ export async function forceFullSync(): Promise<void> {
       "🔄 Starting manual full sync (stop/start DataStore)..."
     );
 
-    await resetDataStore(getResetDeps(), {
-      mode: "restart",
-      waitForOutboxEmpty: true,
-      outboxTimeoutMs: 2000,
-      stopTimeoutMs: 5000,
-      startTimeoutMs: 5000,
-      proceedOnStopTimeout: true,
-      proceedOnStartTimeout: false,
-    });
-    logWithDevice("syncUtils", "✅ DataStore restarted - full sync initiated");
+    // Stop DataStore - this will queue any pending operations
+    logWithDevice("syncUtils", "Stopping DataStore (with 5s timeout)...");
+    await stopDataStoreWithTimeout();
+    logWithDevice("syncUtils", "DataStore stopped");
+
+    // Wait a brief moment to ensure stop completes
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Start DataStore - this triggers a full sync from the cloud
+    logWithDevice(
+      "syncUtils",
+      "Starting DataStore (triggers full sync from cloud)..."
+    );
+    await DataStore.start();
+    logWithDevice("syncUtils", "✅ DataStore started - full sync initiated");
 
     // Wait a bit for sync to begin processing
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -66,18 +95,32 @@ export async function clearCacheAndResync(): Promise<void> {
       "🗑️ Starting cache clear and resync (most aggressive sync)..."
     );
 
-    await resetDataStore(getResetDeps(), {
-      mode: "clearAndRestart",
-      waitForOutboxEmpty: true,
-      outboxTimeoutMs: 2000,
-      stopTimeoutMs: 5000,
-      clearTimeoutMs: 5000,
-      startTimeoutMs: 5000,
-      proceedOnStopTimeout: true,
-      proceedOnClearTimeout: false,
-      proceedOnStartTimeout: false,
-    });
-    logWithDevice("syncUtils", "✅ Local cache cleared and resync initiated");
+    // Stop DataStore first
+    logWithDevice("syncUtils", "Stopping DataStore (with 5s timeout)...");
+    await stopDataStoreWithTimeout();
+    logWithDevice("syncUtils", "DataStore stopped");
+
+    // Wait a moment
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Clear all local data - this removes the local SQLite cache
+    logWithDevice("syncUtils", "Clearing local DataStore cache...");
+    await DataStore.clear();
+    logWithDevice("syncUtils", "✅ Local cache cleared");
+
+    // Wait a moment
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Start DataStore - this will trigger a complete resync from cloud
+    logWithDevice(
+      "syncUtils",
+      "Starting DataStore (triggers complete resync from cloud)..."
+    );
+    await DataStore.start();
+    logWithDevice(
+      "syncUtils",
+      "✅ DataStore started - complete resync initiated"
+    );
 
     // Wait longer for sync to process (clearing cache means full resync)
     logWithDevice("syncUtils", "Waiting for complete resync to process...");

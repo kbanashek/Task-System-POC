@@ -4,28 +4,15 @@
 
 import { renderHook, waitFor } from "@testing-library/react-native";
 import { useAmplifyState } from "../useAmplifyState";
-import { DataStore } from "@aws-amplify/datastore";
 
-// useAmplifyState imports Amplify + Hub from @aws-amplify/core (not aws-amplify)
-jest.mock("@aws-amplify/core", () => ({
-  Hub: {
-    listen: jest.fn(),
-  },
-  Amplify: {
-    getConfig: jest.fn(() => ({
-      API: {
-        GraphQL: {
-          endpoint: "https://example.com/graphql",
-        },
-      },
-    })),
-  },
-}));
-
-jest.mock("@aws-amplify/datastore", () => ({
+// Mock AWS Amplify before importing
+jest.mock("aws-amplify", () => ({
   DataStore: {
     start: jest.fn(),
     stop: jest.fn(),
+  },
+  Hub: {
+    listen: jest.fn(),
   },
 }));
 
@@ -36,7 +23,7 @@ jest.mock("@react-native-community/netinfo", () => ({
   },
 }));
 
-const { Hub } = require("@aws-amplify/core");
+const { DataStore, Hub } = require("aws-amplify");
 const NetInfo = require("@react-native-community/netinfo").default;
 
 describe("useAmplifyState - Adversarial Tests", () => {

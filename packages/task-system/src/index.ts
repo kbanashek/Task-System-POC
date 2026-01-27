@@ -1,45 +1,15 @@
-/**
- * @orion/task-system public API
- *
- * This file is the single source of truth for what host applications (like LX)
- * can import from the package.
- *
- * API stability tiers:
- * - Tier 1 (supported): stable exports intended for host app consumption.
- * - Tier 2 (experimental): exported for convenience during active development;
- *   these may change or be removed as the package hardens.
- *
- * Guidance for contributors:
- * - Prefer adding new host-facing primitives to existing Tier 1 exports.
- * - Avoid exporting app-shell/demo-only components as stable API.
- */
-
 export { TaskActivityModule } from "./modules/TaskActivityModule";
 
 // Optional: expose internal building blocks for LX teams if they want to compose.
 export { GroupedTasksView } from "@components/GroupedTasksView";
 export { TaskContainer } from "@components/TaskContainer";
 
-/**
- * Tier 2 (experimental): app-level components.
- *
- * These exist to support demo/harness usage and rapid iteration while LX integration
- * is underway. Treat these as unstable API until explicitly promoted to Tier 1.
- */
-/** @experimental */
+// App-level components (harness/test app use)
 export { GlobalHeader } from "@components/GlobalHeader";
-/** @experimental */
 export { LanguageSelector } from "@components/LanguageSelector";
-/** @experimental */
 export { NavigationMenu } from "@components/NavigationMenu";
-/** @experimental */
 export { NetworkStatusIndicator } from "@components/NetworkStatusIndicator";
-/** @experimental */
 export { TranslatedText } from "@components/TranslatedText";
-/** @experimental - Development tools */
-export { DataSourceToggle } from "@components/dev/DataSourceToggle";
-/** @experimental - Development tools */
-export { DataSourceManager } from "@components/dev/DataSourceManager";
 
 // Runtime initialization (LX-style: host owns Amplify.configure)
 export { initTaskSystem, getTaskSystemConfig } from "@runtime/taskSystem";
@@ -53,11 +23,6 @@ export type {
   TaskSystemFixtureVersion,
 } from "@fixtures/TaskSystemFixture";
 export { FixtureImportService } from "@services/FixtureImportService";
-export { TaskSystemDataLoader } from "@services/TaskSystemDataLoader";
-export type {
-  LoadTaskSystemDataOptions,
-  LoadTaskSystemDataResult,
-} from "@services/TaskSystemDataLoader";
 
 // Question flow + question components
 export * from "@components/questions";
@@ -102,7 +67,6 @@ export * from "@services/translationTypes";
 
 // Export all hooks - single source of truth
 export { useActivity } from "@hooks/useActivity";
-export { useFixtureLoader } from "@hooks/useFixtureLoader";
 export { useActivityData } from "@hooks/useActivityData";
 export { useActivityList } from "@hooks/useActivityList";
 export {
@@ -179,15 +143,6 @@ export {
   parseActivityConfig,
 } from "@utils/parsers/activityParser";
 export type { ParsedActivityData } from "@utils/parsers/activityParser";
-export type {
-  DataStoreResetMode,
-  DataStoreResetOptions,
-  DataStoreResetResult,
-} from "@utils/datastore/dataStoreReset";
-export {
-  resetDataStore,
-  waitForOutboxEmpty,
-} from "@utils/datastore/dataStoreReset";
 export {
   getDeviceId,
   getLogPrefix,
@@ -205,8 +160,6 @@ export {
   groupAppointmentsByDate,
   parseAppointmentData,
 } from "@utils/parsers/appointmentParser";
-export { lxToTaskSystemAdapter } from "@utils/lxToTaskSystemAdapter";
-export type { LXGetTasksResponse, LXTask } from "@utils/lxToTaskSystemAdapter";
 
 // Export constants
 export { AWSErrorName } from "@constants/awsErrors";
@@ -218,8 +171,6 @@ export type { OperationSourceType } from "@constants/operationSource";
 
 // Export contexts
 export { AmplifyProvider, useAmplify } from "@contexts/AmplifyContext";
-export { DataSourceProvider, useDataSource } from "@contexts/DataSourceContext";
-export type { DataSourceType } from "@contexts/DataSourceContext";
 
 // Translation system (i18next-based - new architecture)
 export {

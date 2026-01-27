@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 import { ActivityConfig } from "@task-types/ActivityConfig";
 import { TaskStatus } from "@task-types/Task";
@@ -11,17 +11,11 @@ import { useTaskUpdate } from "@hooks/useTaskUpdate";
 
 const logger = getServiceLogger("useQuestionSubmission");
 
-/**
- * Return type for the `useQuestionSubmission` hook.
- */
 export interface UseQuestionSubmissionReturn {
   isSubmitting: boolean;
   handleSubmit: () => Promise<void>;
 }
 
-/**
- * Options for the `useQuestionSubmission` hook.
- */
 export interface UseQuestionSubmissionOptions {
   taskId: string | undefined;
   entityId: string | undefined;
@@ -48,7 +42,6 @@ export const useQuestionSubmission = ({
   onError,
 }: UseQuestionSubmissionOptions): UseQuestionSubmissionReturn => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const isSubmittingRef = useRef<boolean>(false);
   const { getAnswerByQuestionId, createTaskAnswer, updateTaskAnswer } =
     useTaskAnswer();
   const {
@@ -59,10 +52,8 @@ export const useQuestionSubmission = ({
   const { updateTask } = useTaskUpdate();
 
   const handleSubmit = useCallback(async () => {
-    // Guard against race condition: prevent double submission.
-    // A ref is required because React state updates are async; two rapid taps can
-    // invoke the same closure before state flips to true.
-    if (isSubmittingRef.current) {
+    // Guard against race condition: prevent double submission
+    if (isSubmitting) {
       return;
     }
 
@@ -86,7 +77,6 @@ export const useQuestionSubmission = ({
       return;
     }
 
-    isSubmittingRef.current = true;
     setIsSubmitting(true);
     const savedAnswers: string[] = [];
     const failedAnswers: { questionId: string; error: string }[] = [];
@@ -285,10 +275,10 @@ export const useQuestionSubmission = ({
       Alert.alert("Error", errorMessage);
       onError?.(errorMessage);
     } finally {
-      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }, [
+    isSubmitting,
     taskId,
     entityId,
     answers,

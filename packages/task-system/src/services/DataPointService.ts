@@ -1,5 +1,5 @@
-import { Hub } from "@aws-amplify/core";
 import { DataStore, OpType } from "@aws-amplify/datastore";
+import { ModelName } from "@constants/modelNames";
 import { OperationSource } from "@constants/operationSource";
 import { DataPoint, DataPointInstance } from "@models/index";
 import {
@@ -8,8 +8,6 @@ import {
   UpdateDataPointInput,
   UpdateDataPointInstanceInput,
 } from "@task-types/DataPoint";
-import { resetDataStore } from "@utils/datastore/dataStoreReset";
-import { isDataStoreModelDeleted } from "@utils/datastore/isDataStoreModelDeleted";
 import { logErrorWithDevice, logWithDevice } from "@utils/logging/deviceLogger";
 import { getServiceLogger } from "@utils/logging/serviceLogger";
 
@@ -149,8 +147,8 @@ export class DataPointService {
       "Setting up DataStore subscription for DataPoint"
     );
 
-    const querySubscription = DataStore.observeQuery(DataPoint).subscribe({
-      next: snapshot => {
+    const querySubscription = DataStore.observeQuery(DataPoint).subscribe(
+      snapshot => {
         const { items, isSynced } = snapshot;
 
         logWithDevice(
@@ -165,7 +163,7 @@ export class DataPointService {
 
         callback(items, isSynced);
       },
-      error: (error: unknown) => {
+      error => {
         logErrorWithDevice(
           "DataPointService",
           "DataStore subscription error",
@@ -173,15 +171,15 @@ export class DataPointService {
         );
         // Provide empty array to prevent app crash
         callback([], false);
-      },
-    });
+      }
+    );
 
     // Also observe DELETE operations to ensure deletions trigger updates
-    const deleteObserver = DataStore.observe(DataPoint).subscribe({
-      next: msg => {
+    const deleteObserver = DataStore.observe(DataPoint).subscribe(
+      msg => {
         if (msg.opType === OpType.DELETE) {
-          const element = msg.element;
-          const isLocalDelete = isDataStoreModelDeleted(element);
+          const element = msg.element as any;
+          const isLocalDelete = element?._deleted === true;
           const source = isLocalDelete
             ? OperationSource.LOCAL
             : OperationSource.REMOTE_SYNC;
@@ -190,12 +188,9 @@ export class DataPointService {
             "DataPointService",
             `DELETE operation detected for DataPoint (${source})`,
             {
-              dataPointId: element.id,
-              dataPointKey: element.dataPointKey,
-              deleted:
-                typeof element === "object" && element !== null
-                  ? Reflect.get(element as object, "_deleted")
-                  : undefined,
+              dataPointId: element?.id,
+              dataPointName: element?.name,
+              deleted: element?._deleted,
               operationType: msg.opType,
             }
           );
@@ -220,10 +215,10 @@ export class DataPointService {
             });
         }
       },
-      error: (error: unknown) => {
+      error => {
         logErrorWithDevice("DataPointService", "DELETE observer error", error);
-      },
-    });
+      }
+    );
 
     return {
       unsubscribe: () => {
@@ -358,8 +353,8 @@ export class DataPointService {
     const deleteObserver = DataStore.observe(DataPointInstance).subscribe(
       msg => {
         if (msg.opType === OpType.DELETE) {
-          const element = msg.element;
-          const isLocalDelete = isDataStoreModelDeleted(element);
+          const element = msg.element as any;
+          const isLocalDelete = element?._deleted === true;
           const source = isLocalDelete
             ? OperationSource.LOCAL
             : OperationSource.REMOTE_SYNC;
@@ -368,12 +363,9 @@ export class DataPointService {
             "DataPointService",
             `DELETE operation detected for DataPointInstance (${source})`,
             {
-              instanceId: element.id,
-              dataPointKey: element.dataPointKey,
-              deleted:
-                typeof element === "object" && element !== null
-                  ? Reflect.get(element as object, "_deleted")
-                  : undefined,
+              instanceId: element?.id,
+              dataPointId: element?.dataPointId,
+              deleted: element?._deleted,
               operationType: msg.opType,
             }
           );
@@ -411,18 +403,7 @@ export class DataPointService {
 
   static async clearDataStore(): Promise<void> {
     try {
-      await resetDataStore(
-        { dataStore: DataStore, hub: Hub },
-        {
-          mode: "clearAndRestart",
-          waitForOutboxEmpty: true,
-          outboxTimeoutMs: 2000,
-          stopTimeoutMs: 5000,
-          clearTimeoutMs: 5000,
-          startTimeoutMs: 5000,
-          proceedOnStopTimeout: true,
-        }
-      );
+      await DataStore.clear();
     } catch (error) {
       getServiceLogger("DataPointService").error(
         "Error clearing DataStore",

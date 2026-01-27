@@ -14,7 +14,6 @@ import { TaskService } from "@services/TaskService";
 import { TempAnswerSyncService } from "@services/TempAnswerSyncService";
 import type { AnswerValue } from "@task-types/AnswerValue";
 import { Task, TaskStatus } from "@task-types/Task";
-import { normalizeActivityLookupId } from "@utils/activities/normalizeActivityLookupId";
 import { getServiceLogger } from "@utils/logging/serviceLogger";
 import { extractActivityIdFromTask } from "@utils/tasks/taskUtils";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -129,19 +128,7 @@ export const useQuestionsScreen = (
   // Extract entityId from route params or fallback to extracting from task
   const entityId = useMemo(() => {
     if (routeEntityId) {
-      const normalized = normalizeActivityLookupId(routeEntityId);
-      if (!normalized) {
-        // Warn only when route params are malformed; this is actionable and should not spam.
-        logger.warn(
-          "Invalid route entityId format (expected ActivityRef/Activity/uuid)",
-          {
-            routeEntityId,
-          }
-        );
-        // Fall through to task-based extraction.
-      } else {
-        return normalized;
-      }
+      return routeEntityId;
     }
     // Fallback: extract from task if available
     if (task) {

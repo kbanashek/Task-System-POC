@@ -57,18 +57,10 @@ import "react-native-url-polyfill/auto";
 **Option A: Force DataStore Resync (preferred)**
 
 ```typescript
-// Preferred: use the centralized reset util (adds timeouts + best-effort outbox waiting)
-import { DataStore } from "@aws-amplify/datastore";
-import { Hub } from "@aws-amplify/core";
-import { resetDataStore } from "@orion/task-system";
-
-await resetDataStore(
-  { dataStore: DataStore, hub: Hub },
-  { mode: "clearAndRestart" }
-);
+// Clears local cache and forces fresh pull from AWS
+await DataStore.clear();
+await DataStore.start();
 ```
-
-For details, see [DataStore lifecycle and resets](./datastore-lifecycle-and-resets.md).
 
 **Option B: Delete and Reinstall App (nuclear)**
 

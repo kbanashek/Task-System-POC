@@ -3,7 +3,6 @@ import { Appointment, AppointmentData } from "@task-types/Appointment";
 import { parseAppointmentData } from "@utils/parsers/appointmentParser";
 import { getServiceLogger } from "@utils/logging/serviceLogger";
 import { dataSubscriptionLogger } from "@utils/logging/dataSubscriptionLogger";
-import appointmentsFixture from "../appointments.json";
 
 const APPOINTMENTS_STORAGE_KEY = "@appointments_data";
 
@@ -36,13 +35,13 @@ export class AppointmentService {
         return parsed;
       }
 
-      // Fallback to bundled JSON fixture (packaged with @orion/task-system)
-      const appointmentData = appointmentsFixture as unknown as
-        | AppointmentData
-        | undefined;
-
+      // Fallback to bundled JSON file
+      const appointmentData: AppointmentData =
+        typeof window === "undefined"
+          ? require("../../../../appointments.json")
+          : (await import("../../../../appointments.json")).default;
       const itemsCount =
-        appointmentData?.clinicPatientAppointments?.clinicAppointments?.items
+        appointmentData.clinicPatientAppointments?.clinicAppointments?.items
           ?.length || 0;
       // Use centralized logger to prevent duplicate logs
       dataSubscriptionLogger.logServiceOperation(
@@ -51,7 +50,7 @@ export class AppointmentService {
         undefined,
         "📅"
       );
-      return appointmentData ?? null;
+      return appointmentData;
     } catch (error) {
       logger.error("Failed to load appointments", error);
       return null;

@@ -1,36 +1,13 @@
-import { Hub } from "@aws-amplify/core";
 import { DataStore, OpType } from "@aws-amplify/datastore";
-import { OperationSource } from "@constants/operationSource";
 import { Question } from "@models/index";
 import { CreateQuestionInput, UpdateQuestionInput } from "@task-types/Question";
-import { resetDataStore } from "@utils/datastore/dataStoreReset";
-import { logErrorWithDevice, logWithDevice } from "@utils/logging/deviceLogger";
+import { logWithDevice, logErrorWithDevice } from "@utils/logging/deviceLogger";
+import { ModelName } from "@constants/modelNames";
+import { OperationSource } from "@constants/operationSource";
 import { getServiceLogger } from "@utils/logging/serviceLogger";
 
 type QuestionUpdateData = Omit<UpdateQuestionInput, "id" | "_version">;
-type QuestionConstructor = new (init: CreateQuestionInput) => Question;
-interface ObserveElement {
-  id?: string;
-  question?: string;
-  _deleted?: boolean;
-}
-/**
- * Service: `QuestionService`
- *
- * Manages `Question` persistence via AWS DataStore and provides helpers for
- * common question operations used across the package (create, read, update,
- * delete, subscribe, and clear DataStore).
- *
- * The subscription helpers use `DataStore.observeQuery` for real-time
- * updates and an additional `DataStore.observe` watcher to ensure deletes
- * trigger a refresh when necessary.
- *
- * @example
- * ```ts
- * const question = await QuestionService.createQuestion({ text: 'Why?' });
- * const all = await QuestionService.getQuestions();
- * ```
- */
+
 export class QuestionService {
   /**
    * Create a new Question
@@ -40,7 +17,7 @@ export class QuestionService {
     try {
       logger.info("Creating question with DataStore", input);
       const question = await DataStore.save(
-        new (Question as unknown as QuestionConstructor)(input)
+        new (Question as any)(input as any)
       );
 
       logger.info("Question created successfully", { id: question.id });
@@ -135,27 +112,10 @@ export class QuestionService {
    * Subscribe to changes in Question items
    */
   static subscribeQuestions(
-    callback: (items: Question[], isSynced: boolean) => void,
-    options?: {
-      /**
-       * If true, perform a full DataStore query after DELETE events.
-       * This is a safety-net for cross-device consistency, but can be expensive.
-       *
-       * Default: true (throttled).
-       */
-      refreshOnDelete?: boolean;
-      /** Debounce/throttle window for refresh queries. Default: 500ms. */
-      deleteRefreshThrottleMs?: number;
-      /** Enable verbose debug logging (opt-in). Default: false. */
-      debug?: boolean;
-    }
+    callback: (items: Question[], isSynced: boolean) => void
   ): {
     unsubscribe: () => void;
   } {
-    const refreshOnDelete = options?.refreshOnDelete ?? true;
-    const deleteRefreshThrottleMs = options?.deleteRefreshThrottleMs ?? 500;
-    const debug = options?.debug ?? false;
-
     getServiceLogger("QuestionService").info(
       "Setting up DataStore subscription for Question"
     );
@@ -164,17 +124,11 @@ export class QuestionService {
       snapshot => {
         const { items, isSynced } = snapshot;
 
-        if (debug) {
-          logWithDevice(
-            "QuestionService",
-            "Subscription update (observeQuery)",
-            {
-              itemCount: items.length,
-              isSynced,
-              itemIds: items.map(i => i.id),
-            }
-          );
-        }
+        logWithDevice("QuestionService", "Subscription update (observeQuery)", {
+          itemCount: items.length,
+          isSynced,
+          itemIds: items.map(i => i.id),
+        });
 
         callback(items, isSynced);
       },
@@ -189,15 +143,28 @@ export class QuestionService {
     );
 
     // Also observe DELETE operations to ensure deletions trigger updates
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    const scheduleRefresh = () => {
-      if (!refreshOnDelete) return;
-      if (refreshTimer) return;
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        DataStore.query(Question)
-          .then(questions => {
-            if (debug) {
+    const deleteObserver = DataStore.observe(Question).subscribe(
+      msg => {
+        if (msg.opType === OpType.DELETE) {
+          const element = msg.element as any;
+          const isLocalDelete = element?._deleted === true;
+          const source = isLocalDelete
+            ? OperationSource.LOCAL
+            : OperationSource.REMOTE_SYNC;
+
+          logWithDevice(
+            "QuestionService",
+            `DELETE operation detected (${source})`,
+            {
+              questionId: element?.id,
+              questionText: element?.question,
+              deleted: element?._deleted,
+              operationType: msg.opType,
+            }
+          );
+
+          DataStore.query(Question)
+            .then(questions => {
               logWithDevice(
                 "QuestionService",
                 "Query refresh after DELETE completed",
@@ -205,42 +172,15 @@ export class QuestionService {
                   remainingQuestionCount: questions.length,
                 }
               );
-            }
-            callback(questions, true);
-          })
-          .catch(err => {
-            logErrorWithDevice(
-              "QuestionService",
-              "Error refreshing after delete",
-              err
-            );
-          });
-      }, deleteRefreshThrottleMs);
-    };
-
-    const deleteObserver = DataStore.observe(Question).subscribe(
-      msg => {
-        if (msg.opType === OpType.DELETE) {
-          const element = msg.element as unknown as ObserveElement | undefined;
-          const isLocalDelete = element?._deleted === true;
-          const source = isLocalDelete
-            ? OperationSource.LOCAL
-            : OperationSource.REMOTE_SYNC;
-
-          if (debug) {
-            logWithDevice(
-              "QuestionService",
-              `DELETE operation detected (${source})`,
-              {
-                questionId: element?.id,
-                questionText: element?.question,
-                deleted: element?._deleted,
-                operationType: msg.opType,
-              }
-            );
-          }
-
-          scheduleRefresh();
+              callback(questions, true);
+            })
+            .catch(err => {
+              logErrorWithDevice(
+                "QuestionService",
+                "Error refreshing after delete",
+                err
+              );
+            });
         }
       },
       error => {
@@ -253,10 +193,6 @@ export class QuestionService {
         logWithDevice("QuestionService", "Unsubscribing from DataStore");
         querySubscription.unsubscribe();
         deleteObserver.unsubscribe();
-        if (refreshTimer) {
-          clearTimeout(refreshTimer);
-          refreshTimer = null;
-        }
       },
     };
   }
@@ -266,18 +202,7 @@ export class QuestionService {
    */
   static async clearDataStore(): Promise<void> {
     try {
-      await resetDataStore(
-        { dataStore: DataStore, hub: Hub },
-        {
-          mode: "clearAndRestart",
-          waitForOutboxEmpty: true,
-          outboxTimeoutMs: 2000,
-          stopTimeoutMs: 5000,
-          clearTimeoutMs: 5000,
-          startTimeoutMs: 5000,
-          proceedOnStopTimeout: true,
-        }
-      );
+      await DataStore.clear();
     } catch (error) {
       getServiceLogger("QuestionService").error(
         "Error clearing DataStore",
