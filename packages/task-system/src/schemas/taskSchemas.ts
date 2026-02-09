@@ -32,7 +32,8 @@ export const createTaskSchema = z
       message: "Invalid task status",
     }),
     startTimeInMillSec: z.number().int().positive().optional().nullable(),
-    expireTimeInMillSec: z.number().int().positive().optional().nullable(),
+    // expireTimeInMillSec: 0 is allowed for episodic tasks
+    expireTimeInMillSec: z.number().int().nonnegative().optional().nullable(),
     endTimeInMillSec: z.number().int().positive().optional().nullable(),
     entityId: z.string().optional().nullable(),
     taskInstanceId: z.string().optional().nullable(),
@@ -53,6 +54,25 @@ export const createTaskSchema = z
     metaInfo: z.string().optional().nullable(),
     version: z.number().int().nonnegative().optional().nullable(),
   })
+  .refine(
+    data => {
+      // For non-episodic tasks, expireTimeInMillSec must be > 0 if provided
+      if (
+        data.expireTimeInMillSec !== null &&
+        data.expireTimeInMillSec !== undefined &&
+        data.taskType !== TaskType.EPISODIC &&
+        data.expireTimeInMillSec <= 0
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message:
+        "expireTimeInMillSec must be greater than 0 for non-episodic tasks",
+      path: ["expireTimeInMillSec"],
+    }
+  )
   .refine(
     data => {
       // Validate time ranges if both start and expire are provided
@@ -109,7 +129,8 @@ export const updateTaskSchema = z
       })
       .optional(),
     startTimeInMillSec: z.number().int().positive().optional().nullable(),
-    expireTimeInMillSec: z.number().int().positive().optional().nullable(),
+    // expireTimeInMillSec: 0 is allowed for episodic tasks
+    expireTimeInMillSec: z.number().int().nonnegative().optional().nullable(),
     endTimeInMillSec: z.number().int().positive().optional().nullable(),
     entityId: z.string().optional().nullable(),
     taskInstanceId: z.string().optional().nullable(),
@@ -130,6 +151,26 @@ export const updateTaskSchema = z
     metaInfo: z.string().optional().nullable(),
     version: z.number().int().nonnegative().optional().nullable(),
   })
+  .refine(
+    data => {
+      // For non-episodic tasks, expireTimeInMillSec must be > 0 if provided
+      if (
+        data.expireTimeInMillSec !== null &&
+        data.expireTimeInMillSec !== undefined &&
+        data.taskType !== undefined &&
+        data.taskType !== TaskType.EPISODIC &&
+        data.expireTimeInMillSec <= 0
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message:
+        "expireTimeInMillSec must be greater than 0 for non-episodic tasks",
+      path: ["expireTimeInMillSec"],
+    }
+  )
   .refine(data => Object.keys(data).length > 0, {
     message: "Update must include at least one field",
   });

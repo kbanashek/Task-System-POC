@@ -268,6 +268,32 @@ describe("useTaskContainer", () => {
       });
     });
 
+    it("navigates to questions screen with extracted id when task has ActivityRef chain entityId", () => {
+      const { result } = renderHook(() => useTaskContainer());
+      const task: Task = {
+        id: "1",
+        pk: "TASK-1",
+        sk: "SK-1",
+        title: "Task 1",
+        description: "Description 1",
+        status: TaskStatus.OPEN,
+        taskType: TaskType.SCHEDULED,
+        startTimeInMillSec: Date.now(),
+        expireTimeInMillSec: Date.now() + 86400000,
+        entityId:
+          "ActivityRef#Arm.111#ActivityGroup.222#Activity.ad93b50d-7d49-4128-8a59-91275e77f3c8",
+      };
+
+      act(() => {
+        result.current.handleTaskPress(task);
+      });
+
+      expect(mockNavigate).toHaveBeenCalledWith("TaskQuestions", {
+        taskId: task.id,
+        entityId: "ad93b50d-7d49-4128-8a59-91275e77f3c8",
+      });
+    });
+
     it("shows alert when task has no entityId", () => {
       const { result } = renderHook(() => useTaskContainer());
       const task: Task = {

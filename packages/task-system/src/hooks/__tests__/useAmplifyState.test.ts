@@ -10,6 +10,7 @@ import { DataStore } from "@aws-amplify/datastore";
 import NetInfo from "@react-native-community/netinfo";
 import { ConflictResolution } from "@services/ConflictResolution";
 
+// Mock aws-amplify Amplify singleton (LX uses Amplify.configure from aws-amplify)
 // Mock AWS Amplify
 jest.mock("@aws-amplify/core", () => ({
   Hub: {
@@ -17,7 +18,15 @@ jest.mock("@aws-amplify/core", () => ({
   },
   Amplify: {
     isConfigured: true,
-    getConfig: jest.fn(() => ({})),
+    getConfig: jest.fn(() => ({
+      API: {
+        GraphQL: {
+          endpoint: "https://example.com/graphql",
+          region: "us-east-1",
+          defaultAuthMode: "userPool",
+        },
+      },
+    })),
   },
 }));
 
@@ -64,6 +73,18 @@ describe("useAmplifyState", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const { Amplify } = require("@aws-amplify/core") as {
+      Amplify: { getConfig: jest.Mock };
+    };
+    Amplify.getConfig.mockReturnValue({
+      API: {
+        GraphQL: {
+          endpoint: "https://example.com/graphql",
+          region: "us-east-1",
+          defaultAuthMode: "userPool",
+        },
+      },
+    });
     mockDataStoreStart.mockResolvedValue(undefined);
     mockNetInfoFetch.mockResolvedValue({ isConnected: true } as any);
     mockNetInfoAddEventListener.mockReturnValue(() => {});
@@ -88,6 +109,26 @@ describe("useAmplifyState", () => {
       await waitFor(() => {
         expect(mockDataStoreStart).toHaveBeenCalled();
       });
+    });
+
+    it("does not start DataStore when GraphQL endpoint is missing", async () => {
+      const { Amplify } = require("@aws-amplify/core") as {
+        Amplify: { getConfig: jest.Mock };
+      };
+
+      // useAmplifyState may consult Amplify config more than once during init;
+      // make this sticky for the full test so we don't accidentally consume a single mockReturnValueOnce.
+      Amplify.getConfig.mockReturnValue({
+        API: { GraphQL: { endpoint: "" } },
+      });
+
+      const { result } = renderHook(() => useAmplifyState());
+
+      await waitFor(() => {
+        expect(result.current.isReady).toBe(true);
+      });
+
+      expect(mockDataStoreStart).not.toHaveBeenCalled();
     });
 
     it("configures ConflictResolution on mount", async () => {

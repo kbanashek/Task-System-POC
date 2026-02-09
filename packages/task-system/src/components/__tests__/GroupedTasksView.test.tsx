@@ -518,6 +518,16 @@ describe("GroupedTasksView", () => {
 
   // 6. Snapshots
   describe("Snapshots", () => {
+    beforeAll(() => {
+      // Freeze time so date formatting in snapshots is stable.
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date("2026-01-11T12:00:00.000Z"));
+    });
+
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
     it("matches snapshot with default props", () => {
       const { toJSON } = render(<GroupedTasksView {...defaultProps} />);
       expect(toJSON()).toMatchSnapshot();

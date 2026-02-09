@@ -209,13 +209,14 @@ describe("TaskService", () => {
       expect(DataStore.delete).toHaveBeenCalledWith(mockTask);
     });
 
-    it("should throw error if task not found", async () => {
+    it("should not throw if task not found (idempotent delete)", async () => {
       const nonExistentId = "550e8400-e29b-41d4-a716-446655440006";
       (DataStore.query as jest.Mock).mockResolvedValue(null);
 
-      await expect(TaskService.deleteTask(nonExistentId)).rejects.toThrow(
-        `Task with id ${nonExistentId} not found`
-      );
+      await expect(
+        TaskService.deleteTask(nonExistentId)
+      ).resolves.toBeUndefined();
+      expect(DataStore.delete).not.toHaveBeenCalled();
     });
   });
 

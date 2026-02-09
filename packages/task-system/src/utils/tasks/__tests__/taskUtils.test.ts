@@ -38,6 +38,16 @@ describe("extractActivityIdFromTask", () => {
       const result = extractActivityIdFromTask(task);
       expect(result).toBe("12345");
     });
+
+    it("should extract activity ID from ActivityRef chain", () => {
+      const task: Task = {
+        entityId:
+          "ActivityRef#Arm.111#ActivityGroup.222#Activity.ad93b50d-7d49-4128-8a59-91275e77f3c8",
+      } as Task;
+
+      const result = extractActivityIdFromTask(task);
+      expect(result).toBe("ad93b50d-7d49-4128-8a59-91275e77f3c8");
+    });
   });
 
   describe("Edge cases - entityId", () => {
@@ -112,6 +122,15 @@ describe("extractActivityIdFromTask", () => {
       const result = extractActivityIdFromTask(task);
       expect(result).toBe("12345");
     });
+
+    it("should return null for bare ActivityRef token", () => {
+      const task: Task = {
+        entityId: "ActivityRef",
+      } as Task;
+
+      const result = extractActivityIdFromTask(task);
+      expect(result).toBeNull();
+    });
   });
 
   describe("Happy path - actions JSON", () => {
@@ -152,6 +171,20 @@ describe("extractActivityIdFromTask", () => {
 
       const result = extractActivityIdFromTask(task);
       expect(result).toBe("12345");
+    });
+
+    it("should extract activity ID from actions JSON with ActivityRef chain", () => {
+      const task: Task = {
+        actions: JSON.stringify([
+          {
+            entityId:
+              "ActivityRef#Arm.111#ActivityGroup.222#Activity.ad93b50d-7d49-4128-8a59-91275e77f3c8",
+          },
+        ]),
+      } as Task;
+
+      const result = extractActivityIdFromTask(task);
+      expect(result).toBe("ad93b50d-7d49-4128-8a59-91275e77f3c8");
     });
   });
 

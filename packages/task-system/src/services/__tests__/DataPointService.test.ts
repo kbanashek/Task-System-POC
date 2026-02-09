@@ -162,8 +162,13 @@ describe("DataPointService", () => {
       it("should subscribe to data point changes", () => {
         const mockDataPoints = [createMockDataPoint({ id: "1" })];
         const mockSubscription = {
-          subscribe: jest.fn(callback => {
-            callback({ items: mockDataPoints, isSynced: true });
+          subscribe: jest.fn((observer: any) => {
+            // Support both observer object ({ next }) and function callback signatures
+            if (observer && typeof observer.next === "function") {
+              observer.next({ items: mockDataPoints, isSynced: true });
+            } else if (typeof observer === "function") {
+              observer({ items: mockDataPoints, isSynced: true });
+            }
             return { unsubscribe: jest.fn() };
           }),
         };

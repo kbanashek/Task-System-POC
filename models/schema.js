@@ -1,66 +1,6 @@
+/** Amplify DataStore schema definition (generated). */
 export const schema = {
   models: {
-    Todo: {
-      name: "Todo",
-      fields: {
-        id: {
-          name: "id",
-          isArray: false,
-          type: "ID",
-          isRequired: true,
-          attributes: [],
-        },
-        name: {
-          name: "name",
-          isArray: false,
-          type: "String",
-          isRequired: true,
-          attributes: [],
-        },
-        description: {
-          name: "description",
-          isArray: false,
-          type: "String",
-          isRequired: false,
-          attributes: [],
-        },
-        createdAt: {
-          name: "createdAt",
-          isArray: false,
-          type: "AWSDateTime",
-          isRequired: false,
-          attributes: [],
-          isReadOnly: true,
-        },
-        updatedAt: {
-          name: "updatedAt",
-          isArray: false,
-          type: "AWSDateTime",
-          isRequired: false,
-          attributes: [],
-          isReadOnly: true,
-        },
-      },
-      syncable: true,
-      pluralName: "Todos",
-      attributes: [
-        {
-          type: "model",
-          properties: {},
-        },
-        {
-          type: "auth",
-          properties: {
-            rules: [
-              {
-                allow: "public",
-                operations: ["create", "update", "delete", "read"],
-              },
-            ],
-          },
-        },
-      ],
-    },
     Task: {
       name: "Task",
       fields: {
@@ -1344,6 +1284,102 @@ export const schema = {
         },
       ],
     },
+    TaskTempAnswer: {
+      name: "TaskTempAnswer",
+      fields: {
+        id: {
+          name: "id",
+          isArray: false,
+          type: "ID",
+          isRequired: true,
+          attributes: [],
+        },
+        pk: {
+          name: "pk",
+          isArray: false,
+          type: "String",
+          isRequired: true,
+          attributes: [],
+        },
+        sk: {
+          name: "sk",
+          isArray: false,
+          type: "String",
+          isRequired: true,
+          attributes: [],
+        },
+        taskPk: {
+          name: "taskPk",
+          isArray: false,
+          type: "String",
+          isRequired: true,
+          attributes: [],
+        },
+        activityId: {
+          name: "activityId",
+          isArray: false,
+          type: "String",
+          isRequired: true,
+          attributes: [],
+        },
+        answers: {
+          name: "answers",
+          isArray: false,
+          type: "AWSJSON",
+          isRequired: true,
+          attributes: [],
+        },
+        localtime: {
+          name: "localtime",
+          isArray: false,
+          type: "AWSDateTime",
+          isRequired: true,
+          attributes: [],
+        },
+        hashKey: {
+          name: "hashKey",
+          isArray: false,
+          type: "String",
+          isRequired: false,
+          attributes: [],
+        },
+        createdAt: {
+          name: "createdAt",
+          isArray: false,
+          type: "AWSDateTime",
+          isRequired: false,
+          attributes: [],
+          isReadOnly: true,
+        },
+        updatedAt: {
+          name: "updatedAt",
+          isArray: false,
+          type: "AWSDateTime",
+          isRequired: false,
+          attributes: [],
+          isReadOnly: true,
+        },
+      },
+      syncable: true,
+      pluralName: "TaskTempAnswers",
+      attributes: [
+        {
+          type: "model",
+          properties: {},
+        },
+        {
+          type: "auth",
+          properties: {
+            rules: [
+              {
+                allow: "public",
+                operations: ["create", "update", "delete", "read"],
+              },
+            ],
+          },
+        },
+      ],
+    },
   },
   enums: {
     TaskType: {
@@ -1365,5 +1401,5 @@ export const schema = {
   },
   nonModels: {},
   codegenVersion: "3.4.4",
-  version: "8ccf34c50dc649115725837744ef1d3c",
+  version: "4661838bf058714b82013ae3319a8507",
 };

@@ -133,12 +133,13 @@ describe("ActivityService", () => {
       expect(DataStore.delete).toHaveBeenCalledWith(mockActivity);
     });
 
-    it("should throw error if activity not found", async () => {
+    it("should not throw if activity not found (idempotent delete)", async () => {
       (DataStore.query as jest.Mock).mockResolvedValue(null);
 
       await expect(
         ActivityService.deleteActivity("non-existent")
-      ).rejects.toThrow("Activity with id non-existent not found");
+      ).resolves.toBeUndefined();
+      expect(DataStore.delete).not.toHaveBeenCalled();
     });
   });
 

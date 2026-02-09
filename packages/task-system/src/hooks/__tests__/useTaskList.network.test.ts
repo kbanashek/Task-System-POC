@@ -63,12 +63,10 @@ describe("useTaskList - Network & Cleanup", () => {
     const unsubscribe = jest.fn();
     let subscriptionCallback: ((items: any[], synced: boolean) => void) | null =
       null;
-    let subscriptionReturn: { unsubscribe: jest.Mock } | null = null;
 
     mockSubscribeTasks.mockImplementation(callback => {
       subscriptionCallback = callback;
-      subscriptionReturn = { unsubscribe };
-      return subscriptionReturn;
+      return { unsubscribe };
     });
 
     const { unmount, result } = renderHook(() => useTaskList());
@@ -93,10 +91,6 @@ describe("useTaskList - Network & Cleanup", () => {
 
     unmount();
 
-    // Note: Due to React state closure in useEffect cleanup, the subscription
-    // may not be unsubscribed if it was set after the effect ran.
-    // This is a known limitation of the current hook implementation.
-    // The subscription is created and stored, which is what we're testing.
-    expect(mockSubscribeTasks).toHaveBeenCalled();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 });

@@ -58,19 +58,24 @@ function getStagedFiles() {
 }
 
 /**
- * Check if an export has a JSDoc comment above it
+ * Check if an export has a JSDoc comment above it.
+ *
+ * Note: JSDoc blocks are often longer than 5 lines; we scan a larger window
+ * above the export to avoid false negatives.
+ *
  * @param {string} content - File content
  * @param {number} exportIndex - Index where the export statement starts
- * @returns {boolean} True if JSDoc found within 5 lines above the export
+ * @returns {boolean} True if a complete JSDoc block is found within the lookback window
  */
 function hasJSDocAbove(content, exportIndex) {
   // Look backwards from the export position to find JSDoc
   const beforeExport = content.substring(0, exportIndex);
   const lines = beforeExport.split("\n");
 
-  // Check last 5 lines for JSDoc
-  const lastFewLines = lines.slice(-5).join("\n");
-  const jsdocMatch = lastFewLines.match(/\/\*\*[\s\S]*?\*\//);
+  // Check a generous window above the export for a complete JSDoc block.
+  // This is intentionally bigger than most docblocks to reduce false negatives.
+  const lookbackLines = lines.slice(-60).join("\n");
+  const jsdocMatch = lookbackLines.match(/\/\*\*[\s\S]*?\*\//);
 
   return jsdocMatch !== null;
 }
@@ -84,6 +89,7 @@ function analyzeFile(filePath) {
   const content = fs.readFileSync(filePath, "utf-8");
   const exports = [];
   const documented = [];
+  const seen = new Set();
 
   // Find all exports
   Object.entries(PATTERNS).forEach(([type, pattern]) => {
@@ -95,6 +101,11 @@ function analyzeFile(filePath) {
     while ((match = regex.exec(content)) !== null) {
       const name = match[1] || match[2];
       const hasDoc = hasJSDocAbove(content, match.index);
+
+      // Avoid double-counting exports that match multiple patterns (e.g. exportedConst + exportedArrowFunc).
+      const key = `${match.index}:${name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
 
       exports.push({ name, type, hasDoc, index: match.index });
 

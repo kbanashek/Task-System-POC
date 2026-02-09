@@ -3,7 +3,8 @@
  * All logs must include platform identification (iOS, Android, or Web)
  */
 
-import { Platform } from "react-native";
+// Don't import react-native's Platform at module-evaluation time to avoid
+// "import after the Jest environment has been torn down" errors in tests.
 import { PACKAGE_SOURCE } from "@constants/packageSource";
 
 const PLATFORM_ICONS: { [key: string]: string } = {
@@ -17,7 +18,24 @@ const PLATFORM_ICONS: { [key: string]: string } = {
  * @returns Platform identifier emoji (e.g., "🍎", "🤖", "🌐")
  */
 export const getPlatformId = (): string => {
-  return PLATFORM_ICONS[Platform.OS] || "❓";
+  try {
+    // If running under Jest, prefer an env override or default to web
+    if (process.env.JEST_WORKER_ID) {
+      const override = process.env.PLATFORM_ICON;
+      if (override) return override;
+      return PLATFORM_ICONS.web;
+    }
+
+    // Lazy-require react-native's Platform to avoid top-level native imports
+    // which can cause issues in Node/Jest environments when the RN env
+    // isn't initialized or is torn down.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Platform } = require("react-native");
+    return PLATFORM_ICONS[Platform?.OS] || "❓";
+  } catch (e) {
+    // Fallback to web platform icon when react-native Platform isn't available
+    return PLATFORM_ICONS.web;
+  }
 };
 
 /**

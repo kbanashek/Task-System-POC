@@ -252,13 +252,13 @@ describe("DateTimeField", () => {
 
   describe("Android behavior", () => {
     beforeEach(() => {
-      const { isAndroid, isIOS } = require("@utils/platform");
+      const { isAndroid, isIOS } = require("@utils/platform/platform");
       isAndroid.mockReturnValue(true);
       isIOS.mockReturnValue(false);
     });
 
     afterEach(() => {
-      const { isAndroid, isIOS } = require("@utils/platform");
+      const { isAndroid, isIOS } = require("@utils/platform/platform");
       isAndroid.mockReturnValue(false);
       isIOS.mockReturnValue(true);
     });

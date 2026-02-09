@@ -1,0 +1,47 @@
+---
+description: Local development workflow for using @orion/task-system inside LX via a live symlink
+alwaysApply: true
+globs: ["**/package.json", "**/metro.config.js", "**/*.ts", "**/*.tsx", "DOCS/**/*.md", "README.md"]
+---
+
+# Local Development: LX + `@orion/task-system` (Always Latest Code)
+
+## Critical rule: use a symlinked dependency (NOT `file:`)
+
+When working on LX integration in a separate repo (e.g. `orion-mobile/Lumiere`), **never use** a `file:` dependency for `@orion/task-system`.
+
+Yarn v1 can install `file:` dependencies as a *copied directory* under `node_modules/`, which causes:
+- Host app running stale package code
+- iOS/Android diverging due to cache / install timing
+- Confusing “I rebuilt but nothing changed” debugging loops
+
+**Required:**
+- In the host app `package.json`, set:
+  - `@orion/task-system`: `link:../../orion-task-system/packages/task-system`
+
+This ensures `node_modules/@orion/task-system` is a **real symlink** to the repo package.
+
+## Required dev command
+
+Always run the host app via the combined dev runner so the package stays rebuilt:
+- From `orion-mobile/Lumiere`:
+  - `yarn dev:task-system`
+
+This runs:
+- task-system `build:watch`
+- task-system `alias:watch`
+- `expo start -c`
+
+## Verification (must do when debugging)
+
+Before debugging “Android vs iOS” inconsistencies, verify the dependency is a symlink:
+- `ls -la node_modules/@orion/task-system`
+  - Must show `task-system -> ../../../../orion-task-system/packages/task-system`
+
+## CodeArtifact auth blocker workaround (local only)
+
+If `yarn install` fails due to an expired AWS CodeArtifact token (common locally), you may run:
+- `yarn install --ignore-scripts`
+
+This skips the `preinstall` auth step so local linking can proceed.
+

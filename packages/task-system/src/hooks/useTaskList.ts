@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAmplify } from "@contexts/AmplifyContext";
 import { TaskService } from "@services/TaskService";
-import { Task, TaskFilters } from "@task-types/Task";
+import { Task, TaskFilters, TaskType } from "@task-types/Task";
 import { NetworkStatus } from "@hooks/useAmplifyState";
 import {
   logWithPlatform,
@@ -58,6 +58,7 @@ interface UseTaskListReturn {
  * await handleDeleteTask("task-123");
  * ```
  */
+/** React hook for managing a list of tasks with live DataStore updates. */
 export const useTaskList = (filters?: TaskFilters): UseTaskListReturn => {
   const [allTasks, setAllTasks] = useState<Task[]>([]); // Store unfiltered tasks
   const [loading, setLoading] = useState<boolean>(true);
@@ -65,9 +66,7 @@ export const useTaskList = (filters?: TaskFilters): UseTaskListReturn => {
   const [isSynced, setIsSynced] = useState<boolean>(false);
   const { networkStatus } = useAmplify();
   const isOnline = networkStatus === NetworkStatus.Online;
-  const [subscription, setSubscription] = useState<{
-    unsubscribe: () => void;
-  } | null>(null);
+  const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
   const lastTaskCountRef = useRef<number>(-1);
   const lastSyncedRef = useRef<boolean | null>(null);
   const hasLoggedInitRef = useRef<boolean>(false);
@@ -105,12 +104,34 @@ export const useTaskList = (filters?: TaskFilters): UseTaskListReturn => {
           lastSyncedRef.current = synced;
         }
 
+        // Log episodic task detection
+        const episodicTasks = items.filter(t => {
+          const taskTypeStr = String(t.taskType).toUpperCase();
+          return taskTypeStr === "EPISODIC" || t.taskType === TaskType.EPISODIC;
+        });
+        // Commented out for less log noise - uncomment to debug episodic task detection
+        // if (episodicTasks.length > 0) {
+        //   console.warn("[useTaskList] 📋 Episodic tasks detected", {
+        //     totalTasks: items.length,
+        //     episodicCount: episodicTasks.length,
+        //     episodicTasks: episodicTasks.map(t => ({
+        //       id: t.id,
+        //       title: t.title,
+        //       taskType: t.taskType,
+        //       taskTypeStr: String(t.taskType).toUpperCase(),
+        //       expireTimeInMillSec: t.expireTimeInMillSec,
+        //     })),
+        //   });
+        // }
+
         setAllTasks(items);
         setIsSynced(synced);
         setLoading(false);
       });
 
-      setSubscription(sub);
+      // Ensure we can always unsubscribe on unmount, even if the subscription
+      // is created after the first render (avoid stale cleanup closures).
+      subscriptionRef.current = sub;
     } catch (err) {
       logErrorWithPlatform(
         "",
@@ -128,17 +149,29 @@ export const useTaskList = (filters?: TaskFilters): UseTaskListReturn => {
 
     // Cleanup subscription on unmount
     return () => {
-      if (subscription) {
-        subscription.unsubscribe();
-      }
+      subscriptionRef.current?.unsubscribe();
+      subscriptionRef.current = null;
     };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, []);
 
   // Memoize filtered tasks - only recalculates when allTasks or filters change
   const tasks = useMemo(() => {
-    if (!filters) return allTasks;
+    // Commented out for less log noise - uncomment to debug task filtering
+    // console.warn("[useTaskList] 🔄 Filtering tasks", {
+    //   totalTasks: allTasks.length,
+    //   hasFilters: !!filters,
+    //   episodicCount: allTasks.filter(t => {
+    //     const taskTypeStr = String(t.taskType).toUpperCase();
+    //     return taskTypeStr === "EPISODIC" || t.taskType === TaskType.EPISODIC;
+    //   }).length,
+    // });
+
+    if (!filters) {
+      // console.warn("[useTaskList] ✅ No filters, returning all tasks", {
+      //   totalTasks: allTasks.length,
+      // });
+      return allTasks;
+    }
 
     let filtered = allTasks;
 
@@ -166,9 +199,22 @@ export const useTaskList = (filters?: TaskFilters): UseTaskListReturn => {
     }
 
     // Apply date range filter
+    // Episodic tasks (without startTimeInMillSec) should always pass date filters
     if (filters.dateFrom || filters.dateTo) {
       filtered = filtered.filter(task => {
-        if (!task.startTimeInMillSec) return false;
+        // Episodic tasks don't have startTimeInMillSec - always include them
+        if (!task.startTimeInMillSec) {
+          // Check if it's episodic - if so, always include
+          const taskTypeStr = String(task.taskType).toUpperCase();
+          if (
+            taskTypeStr === "EPISODIC" ||
+            task.taskType === TaskType.EPISODIC
+          ) {
+            return true;
+          }
+          // Non-episodic tasks without startTimeInMillSec are excluded
+          return false;
+        }
 
         const taskDate = new Date(task.startTimeInMillSec);
 
@@ -183,6 +229,20 @@ export const useTaskList = (filters?: TaskFilters): UseTaskListReturn => {
         return true;
       });
     }
+
+    // Commented out for less log noise - uncomment to debug task filtering
+    // console.warn("[useTaskList] ✅ Filtered tasks result", {
+    //   beforeFilter: allTasks.length,
+    //   afterFilter: filtered.length,
+    //   episodicBefore: allTasks.filter(t => {
+    //     const taskTypeStr = String(t.taskType).toUpperCase();
+    //     return taskTypeStr === "EPISODIC" || t.taskType === TaskType.EPISODIC;
+    //   }).length,
+    //   episodicAfter: filtered.filter(t => {
+    //     const taskTypeStr = String(t.taskType).toUpperCase();
+    //     return taskTypeStr === "EPISODIC" || t.taskType === TaskType.EPISODIC;
+    //   }).length,
+    // });
 
     return filtered;
   }, [allTasks, filters]);
@@ -200,9 +260,8 @@ export const useTaskList = (filters?: TaskFilters): UseTaskListReturn => {
   const retryLoading = () => {
     setLoading(true);
     setError(null);
-    if (subscription) {
-      subscription.unsubscribe();
-    }
+    subscriptionRef.current?.unsubscribe();
+    subscriptionRef.current = null;
     initTasks();
   };
 
@@ -225,13 +284,12 @@ export const useTaskList = (filters?: TaskFilters): UseTaskListReturn => {
       setLoading(true);
       setError(null);
 
-      if (subscription) {
-        subscription.unsubscribe();
-      }
+      subscriptionRef.current?.unsubscribe();
+      subscriptionRef.current = null;
 
       await TaskService.clearDataStore();
 
-      initTasks();
+      await initTasks();
     } catch (err) {
       logErrorWithPlatform("", "useTaskList", "Error clearing DataStore", err);
       setError("Failed to clear DataStore. Please try again.");

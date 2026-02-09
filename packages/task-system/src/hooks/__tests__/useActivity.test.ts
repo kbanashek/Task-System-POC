@@ -67,6 +67,41 @@ describe("useActivity", () => {
       expect(mockGetActivities).toHaveBeenCalled();
     });
 
+    it("prefers hydrated ActivityRef record with layouts when multiple match by sk", async () => {
+      const uuid = "ad93b50d-7d49-4128-8a59-91275e77f3c8";
+
+      const stub = {
+        id: "stub",
+        pk: `Activity.${uuid}`,
+        sk: `SK-Activity.${uuid}`,
+        layouts: null,
+        activityGroups: null,
+        name: "Stub Activity",
+      } as ActivityModel;
+
+      const hydrated = {
+        id: "hydrated",
+        pk: `Activity.${uuid}`,
+        sk: `ActivityRef#Activity.${uuid}`,
+        layouts: JSON.stringify({ layouts: [{ type: "MOBILE", screens: [] }] }),
+        activityGroups: JSON.stringify([]),
+        name: "Hydrated Activity",
+      } as ActivityModel;
+
+      mockGetActivities.mockResolvedValue([stub, hydrated]);
+      mockSubscribeActivities.mockReturnValue({
+        unsubscribe: jest.fn(),
+      });
+
+      const { result } = renderHook(() => useActivity(uuid));
+
+      await waitFor(() => {
+        expect(result.current.activity?.id).toBe("hydrated");
+        expect(result.current.loading).toBe(false);
+        expect(result.current.error).toBeNull();
+      });
+    });
+
     it("fetches activity by id", async () => {
       mockGetActivities.mockResolvedValue(mockActivities);
       mockSubscribeActivities.mockReturnValue({

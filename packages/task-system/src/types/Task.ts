@@ -36,18 +36,30 @@ export interface Task {
   endTime?: string | null;
   dayOffset?: number | null;
   endDayOffset?: number | null;
+  date?: string | null; // ISO date string from LX (e.g., "2024-01-15")
+  localDateTime?: Date | null; // Calculated local date/time for filtering
 
   // Task Type
   taskType: TaskType;
 
   // Status
   status: TaskStatus;
+  statusBeforeExpired?: string | null; // Previous status before task expired (for recall/undo)
 
   // Completion Rules
   showBeforeStart?: boolean | null;
   allowEarlyCompletion?: boolean | null;
   allowLateCompletion?: boolean | null;
   allowLateEdits?: boolean | null;
+
+  // LX Parity Fields
+  noEndTime?: boolean | null; // Tasks without expiration (never expire)
+  dueByLabel?: string | null; // Time label for grouping ("11:00 AM", "2:30 PM", etc.)
+  dueByUpdated?: string | Date | null; // Calculated expiration with recall period
+  isHidden?: boolean | null; // Episodic task visibility flag
+  etci?: string | object | null; // Episodic task control info (startedAt, endedAt)
+  showTask?: boolean | null; // Episodic task show flag
+  canRecall?: number | null; // Recall period in minutes
 
   // Anchors & Actions (stored as JSON strings)
   anchors?: string | null;
@@ -100,6 +112,9 @@ export interface CreateTaskInput {
   endTime?: string | null;
   dayOffset?: number | null;
   endDayOffset?: number | null;
+  date?: string | null;
+  localDateTime?: Date | null;
+  statusBeforeExpired?: string | null;
   showBeforeStart?: boolean | null;
   allowEarlyCompletion?: boolean | null;
   allowLateCompletion?: boolean | null;
@@ -122,6 +137,13 @@ export interface CreateTaskInput {
   tciSk?: string | null;
   studyVersion?: string | null;
   studyStatus?: string | null;
+  noEndTime?: boolean | null;
+  dueByLabel?: string | null;
+  dueByUpdated?: string | Date | null;
+  isHidden?: boolean | null;
+  etci?: string | object | null;
+  showTask?: boolean | null;
+  canRecall?: number | null;
 }
 
 export interface UpdateTaskInput {
@@ -138,8 +160,11 @@ export interface UpdateTaskInput {
   endTime?: string | null;
   dayOffset?: number | null;
   endDayOffset?: number | null;
+  date?: string | null;
+  localDateTime?: Date | null;
   taskType?: TaskType | null;
   status?: TaskStatus | null;
+  statusBeforeExpired?: string | null;
   showBeforeStart?: boolean | null;
   allowEarlyCompletion?: boolean | null;
   allowLateCompletion?: boolean | null;
@@ -162,6 +187,13 @@ export interface UpdateTaskInput {
   tciSk?: string | null;
   studyVersion?: string | null;
   studyStatus?: string | null;
+  noEndTime?: boolean | null;
+  dueByLabel?: string | null;
+  dueByUpdated?: string | Date | null;
+  isHidden?: boolean | null;
+  etci?: string | object | null;
+  showTask?: boolean | null;
+  canRecall?: number | null;
   _version?: number | null;
 }
 

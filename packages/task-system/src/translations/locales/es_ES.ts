@@ -48,6 +48,9 @@ const es_ES = {
     connecting: "Conectando...",
   },
   questions: {
+    title: "Preguntas",
+    noQuestionsAvailable: "No hay preguntas disponibles",
+    goBack: "Volver",
     validationError: "Error de Validación",
     required: "Este campo es obligatorio.",
     invalidFormat: "El valor no coincide con el formato requerido",

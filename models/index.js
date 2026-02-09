@@ -19,7 +19,6 @@ const TaskStatus = {
 };
 
 const {
-  Todo,
   Task,
   Question,
   Activity,
@@ -28,10 +27,10 @@ const {
   TaskAnswer,
   TaskResult,
   TaskHistory,
+  TaskTempAnswer,
 } = initSchema(schema);
 
 export {
-  Todo,
   Task,
   Question,
   Activity,
@@ -40,6 +39,7 @@ export {
   TaskAnswer,
   TaskResult,
   TaskHistory,
+  TaskTempAnswer,
   TaskType,
   TaskStatus,
 };

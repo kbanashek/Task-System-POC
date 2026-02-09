@@ -12,24 +12,6 @@ import { simpleHash } from "@utils/system/simpleHash";
 import { TranslationMemoryService } from "@services/TranslationMemoryService";
 import type { LanguageCode } from "@services/translationTypes";
 
-// Try to load credentials from config file (created by load-aws-credentials script)
-let awsCredentials: {
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  region?: string;
-} | null = null;
-
-try {
-  // Try to import credentials from config file
-  // Use dynamic require that works in both Node.js and React Native
-  awsCredentials = require("../config/aws-credentials.json");
-  // Don't log here at module load time - logging service may not be initialized yet
-  // Logging will happen when TranslationService is actually used
-} catch {
-  // Config file doesn't exist, will use environment variables or default provider
-  awsCredentials = null;
-}
-
 const DEFAULT_SOURCE_LANGUAGE: LanguageCode = "en";
 const CACHE_PREFIX = "translation_cache:";
 const CACHE_EXPIRY_DAYS = 30; // Cache translations for 30 days
@@ -95,13 +77,9 @@ export class TranslationService {
   /**
    * Initialize AWS Translate client
    * Uses credentials from (in order of priority):
-   * 1. Config file (src/config/aws-credentials.json) - created by load-aws-credentials script
-   * 2. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-   * 3. AWS credentials file (~/.aws/credentials) - if available
-   * 4. IAM role (if running on EC2/Lambda)
-   *
-   * To use AWS profiles, run:
-   *   tsx scripts/load-aws-credentials.ts <profile-name> --config
+   * 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, optional AWS_SESSION_TOKEN)
+   * 2. AWS credentials file (~/.aws/credentials) - if available
+   * 3. IAM role (if running on EC2/Lambda)
    */
   private initializeClient(): void {
     try {
@@ -110,21 +88,8 @@ export class TranslationService {
       };
 
       const logger = getServiceLogger("TranslationService");
-      // Priority 1: Use credentials from config file if available
-      if (awsCredentials?.accessKeyId && awsCredentials?.secretAccessKey) {
-        logger.info("Using credentials from config file");
-        config.credentials = {
-          accessKeyId: awsCredentials.accessKeyId,
-          secretAccessKey: awsCredentials.secretAccessKey,
-        };
-        if (awsCredentials.region) {
-          config.region = awsCredentials.region;
-        }
-      } else if (
-        process.env.AWS_ACCESS_KEY_ID &&
-        process.env.AWS_SECRET_ACCESS_KEY
-      ) {
-        // Priority 2: Use environment variables
+      if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+        // Priority 1: Use environment variables
         logger.info("Using credentials from environment variables");
         config.credentials = {
           accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -134,7 +99,7 @@ export class TranslationService {
           config.credentials.sessionToken = process.env.AWS_SESSION_TOKEN;
         }
       } else {
-        // Priority 3: Let SDK use default credential provider chain
+        // Priority 2+: Let SDK use default credential provider chain
         // This will try: env vars, credentials file, IAM role
         logger.info("Using default credential provider chain");
       }
@@ -471,7 +436,8 @@ export class TranslationService {
         logger.warn(
           "AWS credentials not found. Translation disabled.",
           {
-            suggestion: "Run: yarn load-aws-credentials <profile-name>",
+            suggestion:
+              "Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (and optionally AWS_SESSION_TOKEN), or configure ~/.aws/credentials",
           },
           undefined,
           "📝"

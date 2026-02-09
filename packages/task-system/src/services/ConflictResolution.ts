@@ -24,14 +24,32 @@ function ensurePkSk<T extends DataStoreModel>(
   fallback?: Partial<T> | null
 ): T | null {
   if (!model) return model as null;
-  const merged = { ...model };
-  const pk = merged.pk ?? fallback?.pk;
-  const sk = merged.sk ?? fallback?.sk;
-  const id = merged.id ?? fallback?.id;
-  if (pk != null) merged.pk = pk;
-  if (sk != null) merged.sk = sk;
-  if (id != null) merged.id = id;
-  return merged;
+
+  /**
+   * IMPORTANT: Do NOT rely on object spread to carry pk/sk/id.
+   *
+   * Amplify can provide model instances where some properties are not enumerable,
+   * and `{ ...model }` would drop them. That can cause DataStore to throw
+   * "Field pk is required" inside the conflict handler path and enter an infinite retry loop.
+   *
+   * We always read keys via direct property access, then re-attach them explicitly.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawModel = model as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawFallback = fallback as any;
+
+  const pk: string | undefined = rawModel?.pk ?? rawFallback?.pk;
+  const sk: string | undefined = rawModel?.sk ?? rawFallback?.sk;
+  const id: string | undefined = rawModel?.id ?? rawFallback?.id;
+
+  // Keep the rest of the payload, then explicitly attach keys.
+  const merged: Record<string, unknown> = { ...(rawModel ?? {}) };
+  if (typeof pk === "string" && pk.length > 0) merged.pk = pk;
+  if (typeof sk === "string" && sk.length > 0) merged.sk = sk;
+  if (typeof id === "string" && id.length > 0) merged.id = id;
+
+  return merged as T;
 }
 
 /**
@@ -48,6 +66,7 @@ function ensurePkSk<T extends DataStoreModel>(
  * ConflictResolution.configure();
  * ```
  */
+/** Unified conflict resolution strategy for all task-system DataStore models. */
 export class ConflictResolution {
   private static configured = false;
 
@@ -59,6 +78,7 @@ export class ConflictResolution {
     this.configured = false;
   }
 
+  /** Configure DataStore conflict resolution handlers for all task-system models. */
   static configure() {
     if (this.configured) {
       getServiceLogger("ConflictResolution").debug(

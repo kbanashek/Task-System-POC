@@ -2,6 +2,7 @@ import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 
 import { DevOptionsScreen } from "../DevOptionsScreen";
+import { TestIds } from "../../constants/testIds";
 
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -19,6 +20,17 @@ jest.mock("@orion/task-system", () => ({
     const { Text } = require("react-native");
     return <Text>{title}</Text>;
   },
+  // SyncHealthDashboard relies on these exports.
+  NetworkStatus: { Online: "Online", Offline: "Offline" },
+  SyncState: { Synced: "Synced", Syncing: "Syncing", Error: "Error" },
+  useAmplifyState: () => ({
+    isReady: true,
+    networkStatus: "Online",
+    syncState: "Synced",
+    conflictCount: 0,
+    pendingSyncCount: 0,
+    lastSyncedAt: null,
+  }),
 }));
 
 const mockUseDevOptions = jest.fn();
@@ -57,12 +69,17 @@ describe("DevOptionsScreen", () => {
     const screen = render(<DevOptionsScreen />);
 
     expect(screen.getByText("Dev Options")).toBeTruthy();
-    expect(screen.getByText("✅ Safe Operations")).toBeTruthy();
-    expect(screen.getByText("🗑️ Delete Operations")).toBeTruthy();
-    expect(screen.getAllByText(/Add 10 Test Tasks/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Delete All Tasks/).length).toBeGreaterThan(0);
+    expect(screen.getByText("🔄 Sync Tools")).toBeTruthy();
+    expect(screen.getByText("📦 Data Tools")).toBeTruthy();
+    expect(screen.getByText("🗑️ Delete Tools")).toBeTruthy();
+
+    // Prefer testIDs over emoji text (more stable)
+    expect(screen.getByTestId(TestIds.devOptions.forceResync)).toBeTruthy();
+    expect(screen.getByTestId(TestIds.devOptions.quickImport)).toBeTruthy();
+    expect(screen.getByTestId(TestIds.devOptions.deleteTasks)).toBeTruthy();
     expect(
-      screen.getAllByText(/Delete All Appointments/).length
-    ).toBeGreaterThan(0);
+      screen.getByTestId(TestIds.devOptions.deleteAppointments)
+    ).toBeTruthy();
+    expect(screen.getByTestId(TestIds.devOptions.nuclearDelete)).toBeTruthy();
   });
 });

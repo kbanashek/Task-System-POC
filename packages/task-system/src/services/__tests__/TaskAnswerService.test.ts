@@ -154,8 +154,12 @@ describe("TaskAnswerService", () => {
     it("should subscribe to task answer changes", () => {
       const mockAnswers = [createMockTaskAnswer({ id: "1" })];
       const mockSubscription = {
-        subscribe: jest.fn(callback => {
-          callback({ items: mockAnswers, isSynced: true });
+        subscribe: jest.fn((observer: any) => {
+          if (observer && typeof observer.next === "function") {
+            observer.next({ items: mockAnswers, isSynced: true });
+          } else if (typeof observer === "function") {
+            observer({ items: mockAnswers, isSynced: true });
+          }
           return { unsubscribe: jest.fn() };
         }),
       };
@@ -179,8 +183,12 @@ describe("TaskAnswerService", () => {
         { ...createMockTaskAnswer({ id: "2" }), _deleted: true as const },
       ];
       const mockSubscription = {
-        subscribe: jest.fn(callback => {
-          callback({ items: mockAnswers, isSynced: true });
+        subscribe: jest.fn((observer: any) => {
+          if (observer && typeof observer.next === "function") {
+            observer.next({ items: mockAnswers, isSynced: true });
+          } else if (typeof observer === "function") {
+            observer({ items: mockAnswers, isSynced: true });
+          }
           return { unsubscribe: jest.fn() };
         }),
       };

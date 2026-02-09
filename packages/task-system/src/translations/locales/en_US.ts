@@ -48,6 +48,9 @@ const en_US = {
     connecting: "Connecting...",
   },
   questions: {
+    title: "Questions",
+    noQuestionsAvailable: "No questions available",
+    goBack: "Go Back",
     validationError: "Validation Error",
     required: "This field is required.",
     invalidFormat: "Value does not match required format",

@@ -11,3 +11,6 @@ storybook-static/
 # IDE
 .vscode/
 .idea/
+
+# Local-only AWS credential helper (never commit secrets)
+config/aws-credentials.json

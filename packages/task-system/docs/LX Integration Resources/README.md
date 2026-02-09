@@ -2,6 +2,18 @@
 
 This directory contains reference implementations and examples for LX teams integrating the `@orion/task-system` package.
 
+## Local development workflow (LX in separate repo)
+
+LX should consume `@orion/task-system` from the compiled `dist/` entrypoint. For local development:
+
+1. Add a `file:` dependency in LX:
+   - `@orion/task-system`: `file:../../orion-task-system/packages/task-system`
+2. Run the single LX dev command:
+   - `yarn dev:task-system`
+
+This starts Expo/Metro and runs the task-system `build:watch` in parallel so edits to this repo
+rebuild `dist/` and Metro can pick them up via Fast Refresh/reload.
+
 ## Files
 
 ### `LXHostExample.tsx`

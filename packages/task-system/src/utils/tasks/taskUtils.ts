@@ -18,15 +18,36 @@ export const extractActivityIdFromTask = (task: Task): string | null => {
   // Priority 1: Use entityId if present
   // Validate that entityId is a string before calling string methods
   if (task.entityId && typeof task.entityId === "string") {
-    // Handle format: "Activity.{activityId}" or "Activity.{activityId}#{version}"
-    const activityId = task.entityId.replace(/^Activity\./, "").split("#")[0];
-    // Validate that the extracted ID is non-empty before returning
-    if (activityId && activityId.trim().length > 0) {
-      logger.debug("Extracted activity ID from entityId", {
-        entityId: task.entityId,
-        extractedId: activityId,
-      });
-      return activityId;
+    // If the entityId is a direct Activity token, extract immediately
+    if (task.entityId.startsWith("Activity.")) {
+      const activityId = task.entityId.replace(/^Activity\./, "").split("#")[0];
+      if (activityId && activityId.trim().length > 0) {
+        logger.debug("Extracted activity ID from entityId", {
+          entityId: task.entityId,
+          extractedId: activityId,
+        });
+        return activityId;
+      }
+    }
+
+    // If entityId contains a chain (e.g., "ActivityRef#Arm.111#Activity.<uuid>"),
+    // search for the last "Activity.<id>" segment and return its id portion.
+    try {
+      const re = /Activity\.([^#]+)/g;
+      let match: RegExpExecArray | null = null;
+      let last: string | null = null;
+      while ((match = re.exec(task.entityId)) !== null) {
+        if (match[1]) last = match[1];
+      }
+      if (last && last.trim().length > 0) {
+        logger.debug("Extracted activity ID from entityId chain", {
+          entityId: task.entityId,
+          extractedId: last,
+        });
+        return last.split("#")[0];
+      }
+    } catch (e) {
+      // fall through to actions parsing
     }
   }
 
@@ -35,20 +56,40 @@ export const extractActivityIdFromTask = (task: Task): string | null => {
     try {
       const actions = JSON.parse(task.actions);
       if (Array.isArray(actions) && actions.length > 0) {
-        const firstAction = actions[0];
-        // Validate that entityId exists and is a string before calling string methods
-        if (firstAction?.entityId && typeof firstAction.entityId === "string") {
-          // Handle format: "Activity.{activityId}" or "Activity.{activityId}#{version}"
-          const activityId = firstAction.entityId
-            .replace(/^Activity\./, "")
-            .split("#")[0];
-          // Validate that the extracted ID is non-empty before returning
-          if (activityId && activityId.trim().length > 0) {
-            logger.debug("Extracted activity ID from actions", {
-              actions: task.actions,
-              extractedId: activityId,
-            });
-            return activityId;
+        // Try to find any action.entityId that includes an Activity.<id> and extract it
+        for (const a of actions) {
+          const eId = a?.entityId;
+          if (eId && typeof eId === "string") {
+            // Direct Activity.<id>
+            if (eId.startsWith("Activity.")) {
+              const activityId = eId.replace(/^Activity\./, "").split("#")[0];
+              if (activityId && activityId.trim().length > 0) {
+                logger.debug("Extracted activity ID from actions", {
+                  actions: task.actions,
+                  extractedId: activityId,
+                });
+                return activityId;
+              }
+            }
+
+            // Chained ActivityRef style: search for Activity.<id> inside string
+            try {
+              const re = /Activity\.([^#]+)/g;
+              let m: RegExpExecArray | null = null;
+              let last: string | null = null;
+              while ((m = re.exec(eId)) !== null) {
+                if (m[1]) last = m[1];
+              }
+              if (last && last.trim().length > 0) {
+                logger.debug("Extracted activity ID from actions chain", {
+                  actions: task.actions,
+                  extractedId: last,
+                });
+                return last.split("#")[0];
+              }
+            } catch (e) {
+              // ignore and continue
+            }
           }
         }
       }

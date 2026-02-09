@@ -10,9 +10,9 @@ import {
   TranslationProvider,
   initTaskSystem,
 } from "@orion/task-system";
-import awsconfig from "../../../aws-exports";
-import { bootstrapTaskSystem } from "../../../src/bootstrap/taskSystemBootstrap";
-import fixture from "../../../src/fixtures/task-system.fixture.v1.json";
+import awsconfig from "../../../../aws-exports";
+import { bootstrapTaskSystem } from "../../../../src/bootstrap/taskSystemBootstrap";
+import fixture from "../../../../src/fixtures/task-system.fixture.v1.json";
 
 /**
  * LXHostExample

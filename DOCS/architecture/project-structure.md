@@ -207,7 +207,7 @@ graph TD
     PDOCS --> COMP["ComponentGuide.mdx"]
     PDOCS --> START["GettingStarted.mdx"]
 
-    PCONFIG --> AWSCRED["aws-credentials.json"]
+    PCONFIG --> PCFG["(no committed secrets)"]
 ```
 
 ## Key Directories

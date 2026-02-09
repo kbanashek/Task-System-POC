@@ -12,7 +12,6 @@
  * ```
  */
 
-import { Platform } from "react-native";
 import { getLoggingService } from "@services/LoggingService";
 
 /**
@@ -117,7 +116,29 @@ function formatMessage(
     android: "🤖",
     web: "🌐",
   };
-  const platform = platformIcons[Platform.OS] || "❓";
+  // Guard access to Platform in case the React Native runtime is not available
+  let platform = "❓";
+  try {
+    // Avoid requiring react-native during Jest runs or after environment teardown.
+    // If running under Jest, prefer environment overrides instead of requiring RN.
+    if (process && process.env && process.env.JEST_WORKER_ID) {
+      // Allow test environment to override platform icon via env var if needed
+      platform = (process.env.PLATFORM_ICON as string) || "❓";
+    } else {
+      // Lazy-require react-native to avoid importing Platform at module load time
+      // which can cause issues when the React Native runtime is not available.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      try {
+        const rn = require("react-native");
+        const os = (rn && rn.Platform && (rn.Platform as any).OS) || undefined;
+        platform = os ? platformIcons[os] || "❓" : "❓";
+      } catch (e) {
+        platform = "❓";
+      }
+    }
+  } catch (e) {
+    platform = "❓";
+  }
 
   const iconPart = icon ? `${icon} ` : "";
   const messageWithIcon = `${iconPart}${message}`;

@@ -48,6 +48,29 @@ npm install @orion/task-system
 yarn add @orion/task-system
 ```
 
+### Local development with LX (separate repo)
+
+LX is expected to consume this package from the compiled `dist/` entrypoint. When developing
+locally, LX can depend on this repo using a `file:` dependency and run a watcher that keeps
+`dist/` up to date while Expo/Metro runs.
+
+In LX (`orion-mobile/Lumiere/package.json`), add:
+
+```json
+{
+  "@orion/task-system": "file:../../orion-task-system/packages/task-system"
+}
+```
+
+Then run the single dev command from the LX repo:
+
+```bash
+yarn dev:task-system
+```
+
+This command starts Expo and runs the task-system `build:watch` in parallel. If your directory
+layout differs, set `TASK_SYSTEM_PATH` to the absolute path of `packages/task-system`.
+
 ### Basic Usage
 
 ```typescript
@@ -124,6 +147,15 @@ yarn build-storybook
 ```
 
 This generates a static Storybook site in `storybook-static/`
+
+### Packaging smoke check
+
+After building the package, you can validate the built entrypoint is importable:
+
+```bash
+yarn build
+yarn smoke:dist
+```
 
 ## 📖 Documentation
 

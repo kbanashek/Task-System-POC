@@ -1,5 +1,8 @@
+import { Task, TaskType } from "@task-types/Task";
+import { filterAndSortEpisodicTasks } from "@utils/episodicTaskFiltering";
+import { shouldFilterTask, sortTaskArray } from "@utils/taskFiltering";
+import { groupTasksByDueByLabel, sortTaskGroups } from "@utils/taskGrouping";
 import React from "react";
-import { Task, TaskStatus } from "@task-types/Task";
 
 /**
  * Represents a group of tasks organized by day and time.
@@ -9,21 +12,26 @@ export interface GroupedTask {
   dayLabel: string;
   /** Date string in YYYY-MM-DD format */
   dayDate: string;
-  /** Tasks without a specific start time */
+  /** Tasks without a specific start time (episodic tasks) */
   tasksWithoutTime: Task[];
-  /** Tasks grouped by their start time */
+  /** Tasks grouped by their due time label (dueByLabel) */
   timeGroups: { time: string; tasks: Task[] }[];
 }
 
 /**
- * React hook for grouping tasks by day and time.
+ * React hook for grouping tasks by day and time - LX Parity
  *
  * Groups tasks into a hierarchical structure organized by:
  * 1. Day (Today, Tomorrow, or weekday name)
- * 2. Time within each day
+ * 2. Time within each day (by dueByLabel, not expireTimeInMillSec)
  *
- * Tasks are filtered to exclude expired tasks (unless they have active status)
- * and sorted chronologically.
+ * Implements full LX parity:
+ * - Episodic tasks filtered by isHidden, etci, showTask
+ * - Episodic tasks sorted alphabetically and rendered first
+ * - Scheduled/Timed tasks filtered by shouldFilterTask (completed, expired, not started, old tasks)
+ * - Scheduled/Timed tasks sorted by startTimeInMillSec then title
+ * - Scheduled/Timed tasks grouped by dueByLabel
+ * - Recall tasks prioritized in group sorting
  *
  * @param tasks - Array of tasks to group
  * @returns Array of grouped task objects, one per day
@@ -36,6 +44,7 @@ export interface GroupedTask {
  * groupedTasks.map(group => (
  *   <View key={group.dayDate}>
  *     <Text>{group.dayLabel}</Text>
+ *     {group.tasksWithoutTime.map(task => <TaskCard task={task} />)} // Episodic first
  *     {group.timeGroups.map(timeGroup => (
  *       <View key={timeGroup.time}>
  *         <Text>{timeGroup.time}</Text>
@@ -46,233 +55,171 @@ export interface GroupedTask {
  * ));
  * ```
  */
+/** React hook that groups tasks by day and due-by time label (LX parity). */
 export const useGroupedTasks = (tasks: Task[]): GroupedTask[] => {
+  const currentTime = React.useMemo(() => Date.now(), []);
+
   return React.useMemo(() => {
+    // Commented out for less log noise - uncomment to debug task grouping
+    // console.warn("[useGroupedTasks] 🚀 Starting LX-parity task grouping", {
+    //   totalTasks: tasks.length,
+    //   episodicCount: tasks.filter(t => t.taskType === TaskType.EPISODIC).length,
+    //   scheduledCount: tasks.filter(t => t.taskType === TaskType.SCHEDULED)
+    //     .length,
+    //   timedCount: tasks.filter(t => t.taskType === TaskType.TIMED).length,
+    // });
+
+    // 1. Separate episodic and scheduled/timed tasks
+    const episodicTasks = tasks.filter(t => t.taskType === TaskType.EPISODIC);
+    const scheduledTasks = tasks.filter(t => t.taskType !== TaskType.EPISODIC);
+
+    // 2. Filter episodic tasks (LX parity: isHidden, etci, showTask)
+    const filteredEpisodicTasks = filterAndSortEpisodicTasks(
+      episodicTasks,
+      currentTime
+    );
+
+    // console.warn("[useGroupedTasks] ✅ Filtered episodic tasks", {
+    //   before: episodicTasks.length,
+    //   after: filteredEpisodicTasks.length,
+    //   tasks: filteredEpisodicTasks.map(t => t.title),
+    // });
+
+    // 3. Filter scheduled/timed tasks (LX parity: completed, expired, not started, old tasks)
+    const filteredScheduledTasks = scheduledTasks.filter(
+      task => !shouldFilterTask(task, currentTime)
+    );
+
+    // console.warn("[useGroupedTasks] ✅ Filtered scheduled tasks", {
+    //   before: scheduledTasks.length,
+    //   after: filteredScheduledTasks.length,
+    // });
+
+    // 4. Sort scheduled tasks by startTimeInMillSec then title
+    const sortedScheduledTasks = sortTaskArray(filteredScheduledTasks);
+
+    // 5. Group by date (today, tomorrow, future)
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // Include all tasks, but handle COMPLETED, INPROGRESS, and STARTED tasks differently
-    // These statuses indicate active work and should always be shown regardless of date
-    const allTasks = tasks.filter(task => {
-      // Always show COMPLETED, INPROGRESS, and STARTED tasks (active work)
-      if (
-        task.status === TaskStatus.COMPLETED ||
-        task.status === TaskStatus.INPROGRESS ||
-        task.status === TaskStatus.STARTED
-      ) {
-        return true;
+    const tasksByDate: { [dateKey: string]: Task[] } = {};
+
+    sortedScheduledTasks.forEach(task => {
+      let taskDate: Date;
+      if (task.expireTimeInMillSec) {
+        taskDate = new Date(task.expireTimeInMillSec);
+      } else if (task.startTimeInMillSec) {
+        taskDate = new Date(task.startTimeInMillSec);
+      } else {
+        // No timestamp - default to today
+        taskDate = now;
       }
 
-      // Include tasks without expire time
-      if (!task.expireTimeInMillSec) return true;
-
-      // Include tasks that are due today or in the future (by date, not exact time)
-      const taskDate = new Date(task.expireTimeInMillSec);
+      // Use local date, not UTC
       const taskDay = new Date(
         taskDate.getFullYear(),
         taskDate.getMonth(),
         taskDate.getDate()
       );
+      // Format as YYYY-MM-DD in LOCAL timezone (not UTC)
+      const year = taskDay.getFullYear();
+      const month = String(taskDay.getMonth() + 1).padStart(2, "0");
+      const day = String(taskDay.getDate()).padStart(2, "0");
+      const dayKey = `${year}-${month}-${day}`;
 
-      // Show tasks from today onwards (don't filter out past times on today)
-      return taskDay >= today;
+      if (!tasksByDate[dayKey]) {
+        tasksByDate[dayKey] = [];
+      }
+      tasksByDate[dayKey].push(task);
     });
 
-    // Separate tasks with and without due times
-    const tasksWithTime = allTasks.filter(task => task.expireTimeInMillSec);
-    const tasksWithoutTime = allTasks.filter(task => !task.expireTimeInMillSec);
+    // 6. For each date, group by dueByLabel and sort groups
+    const groupedByDate = Object.entries(tasksByDate)
+      .sort(([dateA], [dateB]) => {
+        // Sort dates chronologically
+        return dateA.localeCompare(dateB);
+      })
+      .map(([dateStr, dateTasks]) => {
+        // Parse YYYY-MM-DD as LOCAL date (not UTC)
+        const [year, month, day] = dateStr.split("-").map(Number);
+        const date = new Date(year, month - 1, day); // month is 0-indexed
+        const diffDays = Math.floor(
+          (date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+        );
 
-    // Helper function to create consistent dayKey in YYYY-MM-DD format
-    const createDayKey = (date: Date): string => {
-      const year = date.getFullYear();
-      const month = (date.getMonth() + 1).toString().padStart(2, "0"); // getMonth() returns 0-11, so add 1
-      const day = date.getDate().toString().padStart(2, "0");
-      return `${year}-${month}-${day}`;
-    };
+        // Format day label
+        let dayLabel: string;
+        let dayDate: string;
 
-    // Group by day (date only, no time)
-    const byDay: { [dayKey: string]: Task[] } = {};
-    tasksWithTime.forEach(task => {
-      if (!task.expireTimeInMillSec) return;
-      const taskDate = new Date(task.expireTimeInMillSec);
-      const dayKey = createDayKey(taskDate);
-      if (!byDay[dayKey]) {
-        byDay[dayKey] = [];
-      }
-      byDay[dayKey].push(task);
-    });
+        if (diffDays === 0) {
+          dayLabel = "Today";
+          dayDate = now.toLocaleDateString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          });
+        } else if (diffDays === 1) {
+          dayLabel = "Tomorrow";
+          const tomorrow = new Date(now);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          dayDate = tomorrow.toLocaleDateString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          });
+        } else {
+          dayDate = date.toLocaleDateString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          });
+          dayLabel = dayDate;
+        }
 
-    // Add tasks without time to "Today"
-    if (tasksWithoutTime.length > 0) {
-      const today = new Date();
-      const todayKey = createDayKey(today);
-      if (!byDay[todayKey]) {
-        byDay[todayKey] = [];
-      }
-      byDay[todayKey].unshift(...tasksWithoutTime);
+        // Group by dueByLabel
+        const taskGroups = groupTasksByDueByLabel(dateTasks);
+        const sortedGroups = sortTaskGroups(taskGroups);
+
+        // Format time groups
+        const timeGroups = sortedGroups.map(([timeLabel, groupTasks]) => ({
+          time: timeLabel,
+          tasks: groupTasks,
+        }));
+
+        return {
+          dayLabel,
+          dayDate,
+          tasksWithoutTime: diffDays === 0 ? filteredEpisodicTasks : [], // Episodic tasks only show in "today"
+          timeGroups,
+        };
+      });
+
+    // If today has no scheduled tasks, still create a "Today" group for episodic tasks
+    const hasTodayGroup = groupedByDate.some(g => g.dayLabel === "Today");
+
+    if (!hasTodayGroup && filteredEpisodicTasks.length > 0) {
+      groupedByDate.unshift({
+        dayLabel: "Today",
+        dayDate: now.toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
+        tasksWithoutTime: filteredEpisodicTasks,
+        timeGroups: [],
+      });
     }
 
-    // Process each day
-    const result: GroupedTask[] = [];
+    // console.warn("[useGroupedTasks] ✅ Final grouped result", {
+    //   totalGroups: groupedByDate.length,
+    //   groups: groupedByDate.map(g => ({
+    //     dayLabel: g.dayLabel,
+    //     episodicCount: g.tasksWithoutTime.length,
+    //     timeGroupsCount: g.timeGroups.length,
+    //     firstEpisodic: g.tasksWithoutTime[0]?.title,
+    //   })),
+    // });
 
-    // Sort days: Today first, then Tomorrow, then by date
-    const sortedDayKeys = Object.keys(byDay).sort((a, b) => {
-      const dayA = byDay[a];
-      const dayB = byDay[b];
-
-      // Get dates for comparison
-      let dateA: Date, dateB: Date;
-      const withTimeA = dayA.filter(task => task.expireTimeInMillSec);
-      const withTimeB = dayB.filter(task => task.expireTimeInMillSec);
-
-      if (withTimeA.length > 0) {
-        dateA = new Date(withTimeA[0].expireTimeInMillSec!);
-      } else {
-        dateA = new Date();
-      }
-
-      if (withTimeB.length > 0) {
-        dateB = new Date(withTimeB[0].expireTimeInMillSec!);
-      } else {
-        dateB = new Date();
-      }
-
-      const today = new Date();
-      const todayStart = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate()
-      );
-      const dayAStart = new Date(
-        dateA.getFullYear(),
-        dateA.getMonth(),
-        dateA.getDate()
-      );
-      const dayBStart = new Date(
-        dateB.getFullYear(),
-        dateB.getMonth(),
-        dateB.getDate()
-      );
-
-      const diffA = Math.floor(
-        (dayAStart.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      const diffB = Math.floor(
-        (dayBStart.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      // Today always first
-      if (diffA === 0) return -1;
-      if (diffB === 0) return 1;
-
-      // Tomorrow second
-      if (diffA === 1) return -1;
-      if (diffB === 1) return 1;
-
-      // Then sort by date
-      return diffA - diffB;
-    });
-
-    sortedDayKeys.forEach(dayKey => {
-      const dayTasks = byDay[dayKey];
-
-      // Separate tasks with and without time for this day
-      const withTime = dayTasks.filter(task => task.expireTimeInMillSec);
-      const withoutTime = dayTasks.filter(task => !task.expireTimeInMillSec);
-
-      // Get date from first task with time, or use today for tasks without time
-      let firstTaskDate: Date;
-      if (withTime.length > 0) {
-        firstTaskDate = new Date(withTime[0].expireTimeInMillSec!);
-      } else {
-        firstTaskDate = new Date();
-      }
-
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const taskDay = new Date(
-        firstTaskDate.getFullYear(),
-        firstTaskDate.getMonth(),
-        firstTaskDate.getDate()
-      );
-      const diffDays = Math.floor(
-        (taskDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      // Format date for display - use actual device date for Today/Tomorrow
-      let dayDate: string;
-      let dayLabel: string;
-
-      if (diffDays === 0 || diffDays < 0) {
-        // Today or past: use actual current date
-        dayLabel = "Today";
-        dayDate = now.toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
-      } else if (diffDays === 1) {
-        // Tomorrow: use actual tomorrow date
-        dayLabel = "Tomorrow";
-        const tomorrow = new Date(now);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        dayDate = tomorrow.toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
-      } else {
-        // Future dates: use task's date
-        dayDate = firstTaskDate.toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
-        dayLabel = dayDate;
-      }
-
-      // Group by time within the day
-      const byTime: { [timeKey: string]: Task[] } = {};
-      withTime.forEach(task => {
-        if (!task.expireTimeInMillSec) return;
-        const taskDate = new Date(task.expireTimeInMillSec);
-        const hours = taskDate.getHours();
-        const minutes = taskDate.getMinutes();
-        const timeKey = `${hours.toString().padStart(2, "0")}:${minutes
-          .toString()
-          .padStart(2, "0")}`;
-        if (!byTime[timeKey]) {
-          byTime[timeKey] = [];
-        }
-        byTime[timeKey].push(task);
-      });
-
-      // Sort time groups and format time
-      const timeGroups = Object.keys(byTime)
-        .sort()
-        .map(timeKey => {
-          const [hours, minutes] = timeKey.split(":").map(Number);
-          const timeDate = new Date();
-          timeDate.setHours(hours, minutes);
-          const timeStr = timeDate.toLocaleTimeString("en-US", {
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-          });
-          return {
-            time: timeStr,
-            tasks: byTime[timeKey],
-          };
-        });
-
-      result.push({
-        dayLabel,
-        dayDate,
-        tasksWithoutTime: withoutTime,
-        timeGroups,
-      });
-    });
-
-    return result;
-  }, [tasks]);
+    return groupedByDate;
+  }, [tasks, currentTime]);
 };

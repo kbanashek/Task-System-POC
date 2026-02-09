@@ -248,6 +248,49 @@ describe("useQuestionsScreen", () => {
       const { result } = renderHook(() => useQuestionsScreen());
       expect(result.current.currentScreenValid).toBe(true);
     });
+
+    it("normalizes ActivityRef route entityId to uuid", () => {
+      mockUseRoute.mockReturnValue({
+        params: {
+          taskId: "TASK-1",
+          entityId:
+            "ActivityRef#Arm.111#ActivityGroup.222#Activity.ad93b50d-7d49-4128-8a59-91275e77f3c8",
+        },
+      } as any);
+
+      const { result } = renderHook(() => useQuestionsScreen());
+      expect(result.current.entityId).toBe(
+        "ad93b50d-7d49-4128-8a59-91275e77f3c8"
+      );
+    });
+
+    it("normalizes Activity.<uuid> route entityId to uuid", () => {
+      mockUseRoute.mockReturnValue({
+        params: {
+          taskId: "TASK-1",
+          entityId: "Activity.ad93b50d-7d49-4128-8a59-91275e77f3c8",
+        },
+      } as any);
+
+      const { result } = renderHook(() => useQuestionsScreen());
+      expect(result.current.entityId).toBe(
+        "ad93b50d-7d49-4128-8a59-91275e77f3c8"
+      );
+    });
+
+    it("falls back to task-derived entityId when route entityId is invalid ActivityRef token", async () => {
+      mockUseRoute.mockReturnValue({
+        params: { taskId: "TASK-1", entityId: "ActivityRef" },
+      } as any);
+
+      const { result } = renderHook(() => useQuestionsScreen());
+
+      await waitFor(() => {
+        expect(result.current.entityId).toBe("ACTIVITY-1");
+      });
+
+      expect(result.current.error).toBeNull();
+    });
   });
 
   describe("introduction screen", () => {

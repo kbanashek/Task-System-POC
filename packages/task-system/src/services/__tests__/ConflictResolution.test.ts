@@ -173,5 +173,43 @@ describe("ConflictResolution", () => {
 
       expect(result._deleted).toBe(true);
     });
+
+    it("should preserve non-enumerable pk/sk/id on conflict handler results", async () => {
+      ConflictResolution.configure();
+
+      const configureCall = (DataStore.configure as jest.Mock).mock.calls[0][0];
+      const conflictHandler = configureCall.conflictHandler;
+
+      // Simulate Amplify providing a model instance with non-enumerable keys
+      const remoteModel: Record<string, unknown> = {
+        name: "Remote",
+        _deleted: true as const,
+      };
+      Object.defineProperty(remoteModel, "pk", {
+        value: "PK",
+        enumerable: false,
+      });
+      Object.defineProperty(remoteModel, "sk", {
+        value: "SK",
+        enumerable: false,
+      });
+      Object.defineProperty(remoteModel, "id", {
+        value: "ID",
+        enumerable: false,
+      });
+
+      const result = await conflictHandler({
+        modelConstructor: { name: "Task" },
+        localModel: {}, // incomplete local
+        remoteModel,
+        operation: OpType.DELETE,
+        attempts: 1,
+      });
+
+      expect(result.pk).toBe("PK");
+      expect(result.sk).toBe("SK");
+      expect(result.id).toBe("ID");
+      expect(result._deleted).toBe(true);
+    });
   });
 });

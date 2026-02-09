@@ -1,13 +1,13 @@
-import { useCallback, useState } from "react";
-import { Alert } from "react-native";
-import { ActivityConfig } from "@task-types/ActivityConfig";
-import { TaskStatus } from "@task-types/Task";
-import { ParsedActivityData } from "@utils/parsers/activityParser";
-import { validateAllScreens } from "@utils/validation/questionValidation";
-import { getServiceLogger } from "@utils/logging/serviceLogger";
 import { useDataPointInstance } from "@hooks/useDataPointInstance";
 import { useTaskAnswer } from "@hooks/useTaskAnswer";
 import { useTaskUpdate } from "@hooks/useTaskUpdate";
+import { ActivityConfig } from "@task-types/ActivityConfig";
+import { TaskStatus } from "@task-types/Task";
+import { getServiceLogger } from "@utils/logging/serviceLogger";
+import { ParsedActivityData } from "@utils/parsers/activityParser";
+import { validateAllScreens } from "@utils/validation/questionValidation";
+import { useCallback, useState } from "react";
+import { Alert } from "react-native";
 
 const logger = getServiceLogger("useQuestionSubmission");
 
@@ -19,7 +19,7 @@ export interface UseQuestionSubmissionReturn {
 export interface UseQuestionSubmissionOptions {
   taskId: string | undefined;
   entityId: string | undefined;
-  answers: Record<string, any>;
+  answers: { [key: string]: any };
   activityData: ParsedActivityData | null;
   activityConfig: ActivityConfig | null;
   onSuccess?: () => void;
@@ -50,6 +50,19 @@ export const useQuestionSubmission = ({
     updateDataPointInstance,
   } = useDataPointInstance();
   const { updateTask } = useTaskUpdate();
+  const logger = getServiceLogger("useQuestionSubmission");
+
+  const safeStringify = (value: unknown): string => {
+    try {
+      return JSON.stringify(value);
+    } catch (e) {
+      try {
+        return String(value);
+      } catch {
+        return "[unserializable]";
+      }
+    }
+  };
 
   const handleSubmit = useCallback(async () => {
     // Guard against race condition: prevent double submission
@@ -132,7 +145,6 @@ export const useQuestionSubmission = ({
               entityId,
               questionId
             );
-
             if (existingDataPoint) {
               await updateDataPointInstance(existingDataPoint.id, {
                 answers: answerString,

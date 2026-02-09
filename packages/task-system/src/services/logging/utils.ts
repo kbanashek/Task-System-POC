@@ -109,6 +109,14 @@ export function formatMetadataInline(
     return "";
   }
 
+  const safeStringify = (value: unknown): string => {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "[Unserializable]";
+    }
+  };
+
   const parts: string[] = [];
   for (const [key, value] of Object.entries(metadata)) {
     if (value === null || value === undefined) {
@@ -116,7 +124,7 @@ export function formatMetadataInline(
     }
     if (typeof value === "object" && !Array.isArray(value)) {
       // For nested objects, stringify compactly
-      parts.push(`${key}: ${JSON.stringify(value).replace(/\s+/g, " ")}`);
+      parts.push(`${key}: ${safeStringify(value).replace(/\s+/g, " ")}`);
     } else if (Array.isArray(value)) {
       parts.push(`${key}: [${value.length}]`);
     } else {

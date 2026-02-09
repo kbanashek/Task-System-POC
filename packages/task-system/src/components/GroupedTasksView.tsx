@@ -246,7 +246,7 @@ export const GroupedTasksView: React.FC<GroupedTasksViewProps> = ({
               </View>
             ) : null}
 
-            {/* Tasks without due time */}
+            {/* Tasks without due time (episodic tasks) - show first */}
             <View key={`tasks-without-time-${currentLanguage}`}>
               {dayGroup.tasksWithoutTime.map(task => (
                 <TaskCard
@@ -259,7 +259,7 @@ export const GroupedTasksView: React.FC<GroupedTasksViewProps> = ({
               ))}
             </View>
 
-            {/* Tasks grouped by time */}
+            {/* Tasks grouped by time (scheduled tasks) - show after episodic tasks */}
             {dayGroup.timeGroups.map(timeGroup => (
               <View
                 key={`${timeGroup.time}-${currentLanguage}`}

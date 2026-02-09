@@ -1,18 +1,42 @@
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { QuestionHeader } from "@components/QuestionHeader";
-import { AppFonts } from "@constants/AppFonts";
 import { CompletionScreen } from "@components/questions/CompletionScreen";
 import { ErrorState } from "@components/questions/ErrorState";
 import { IntroductionScreen } from "@components/questions/IntroductionScreen";
 import { LoadingState } from "@components/questions/LoadingState";
 import { QuestionScreenContent } from "@components/questions/QuestionScreenContent";
 import { ReviewScreenContainer } from "@components/questions/ReviewScreenContainer";
+import { AppColors } from "@constants/AppColors";
+import { AppFonts } from "@constants/AppFonts";
 import { useQuestionsScreen } from "@hooks/useQuestionsScreen";
 import { useTranslatedText } from "@hooks/useTranslatedText";
+import { useTaskTranslation } from "@translations/index";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const CONTENT_PADDING = 20;
+
+/**
+ * Enum-like runtime constant for Questions screen modes.
+ *
+ * Centralizes string values so this screen doesn't compare raw literals.
+ */
+const QUESTIONS_SCREEN_MODE = {
+  completion: "completion",
+  introduction: "introduction",
+  review: "review",
+  questions: "questions",
+} as const;
+
+type QuestionsScreenMode =
+  (typeof QUESTIONS_SCREEN_MODE)[keyof typeof QUESTIONS_SCREEN_MODE];
+
+const QUESTIONS_SCREEN_TRANSLATION_KEYS = {
+  title: "questions.title",
+  noQuestionsAvailable: "questions.noQuestionsAvailable",
+  goBack: "questions.goBack",
+  answerQuestions: "activity.answerQuestions",
+} as const;
 
 interface QuestionsScreenProps {
   /**
@@ -28,6 +52,7 @@ export default function QuestionsScreen({
 }: QuestionsScreenProps) {
   const insets = useSafeAreaInsets();
   const topInset = disableSafeAreaTopInset ? 0 : insets.top;
+  const { t } = useTaskTranslation();
 
   const {
     loading,
@@ -57,7 +82,9 @@ export default function QuestionsScreen({
   } = useQuestionsScreen();
 
   // Use task title if available, otherwise fall back to default
-  const defaultTitle = taskId ? "Answer Questions" : "Questions";
+  const defaultTitle = taskId
+    ? t(QUESTIONS_SCREEN_TRANSLATION_KEYS.answerQuestions)
+    : t(QUESTIONS_SCREEN_TRANSLATION_KEYS.title);
   const taskTitle = task?.title || defaultTitle;
   const { translatedText: headerTitle } = useTranslatedText(taskTitle);
 
@@ -89,13 +116,17 @@ export default function QuestionsScreen({
         <View
           style={[
             styles.contentWrapper,
-            { paddingTop: insets.top, paddingHorizontal: CONTENT_PADDING },
+            { paddingTop: topInset, paddingHorizontal: CONTENT_PADDING },
           ]}
         >
           <View style={styles.centerContainer}>
-            <Text style={styles.emptyText}>No questions available</Text>
+            <Text style={styles.emptyText}>
+              {t(QUESTIONS_SCREEN_TRANSLATION_KEYS.noQuestionsAvailable)}
+            </Text>
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-              <Text style={styles.backButtonText}>Go Back</Text>
+              <Text style={styles.backButtonText}>
+                {t(QUESTIONS_SCREEN_TRANSLATION_KEYS.goBack)}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -103,18 +134,84 @@ export default function QuestionsScreen({
     );
   }
 
+  const mode: QuestionsScreenMode = (() => {
+    // Preserve existing precedence (and avoid rendering multiple modes simultaneously).
+    if (showCompletion && !showIntroduction && !showReview && activityConfig) {
+      return QUESTIONS_SCREEN_MODE.completion;
+    }
+    if (showIntroduction && !showCompletion) {
+      return QUESTIONS_SCREEN_MODE.introduction;
+    }
+    if (showReview && !showIntroduction && !showCompletion) {
+      return QUESTIONS_SCREEN_MODE.review;
+    }
+    return QUESTIONS_SCREEN_MODE.questions;
+  })();
+
+  const showBackButton =
+    !!taskId &&
+    mode !== QUESTIONS_SCREEN_MODE.completion &&
+    mode !== QUESTIONS_SCREEN_MODE.review;
+  const showCloseButton = !!taskId && mode !== QUESTIONS_SCREEN_MODE.completion;
+
+  const renderByMode: { [key in QuestionsScreenMode]: () => React.ReactNode } =
+    {
+      [QUESTIONS_SCREEN_MODE.completion]: () =>
+        activityConfig ? (
+          <CompletionScreen
+            activityConfig={activityConfig}
+            onDone={handleCompletionDone}
+          />
+        ) : null,
+      [QUESTIONS_SCREEN_MODE.introduction]: () => (
+        <IntroductionScreen
+          activityConfig={activityConfig || {}}
+          onBegin={handleBegin}
+          task={task}
+        />
+      ),
+      [QUESTIONS_SCREEN_MODE.review]: () => (
+        <ReviewScreenContainer
+          activityData={activityData}
+          answers={answers}
+          isSubmitting={isSubmitting}
+          onEditQuestion={handleEditQuestion}
+          onSubmit={handleSubmit}
+          bottomInset={insets.bottom}
+          tabBarHeight={60}
+        />
+      ),
+      [QUESTIONS_SCREEN_MODE.questions]: () => (
+        <View style={styles.questionContainer}>
+          <QuestionScreenContent
+            activityData={activityData}
+            currentScreenIndex={currentScreenIndex}
+            answers={answers}
+            errors={errors}
+            onAnswerChange={handleAnswerChange}
+            bottomInset={insets.bottom}
+            currentScreenValid={currentScreenValid}
+            cameFromReview={cameFromReview}
+            isLastScreen={
+              currentScreenIndex === activityData.screens.length - 1
+            }
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            onReviewOrSubmit={handleReviewSubmit}
+            task={task ?? undefined}
+          />
+        </View>
+      ),
+    } as const;
+
   return (
     <View style={styles.container}>
       <View style={styles.headerWrapper}>
         <QuestionHeader
           title={headerTitle}
-          showBackButton={
-            !!(taskId && !showIntroduction && !showCompletion && !showReview)
-          }
+          showBackButton={showBackButton}
           onBackPress={handleBack}
-          showCloseButton={
-            !!(taskId && !showIntroduction && !showCompletion && !showReview)
-          }
+          showCloseButton={showCloseButton}
           onClosePress={handleBack}
         />
       </View>
@@ -124,65 +221,7 @@ export default function QuestionsScreen({
           { paddingTop: topInset, paddingHorizontal: CONTENT_PADDING },
         ]}
       >
-        {/* Completion Screen - Show first if completed (highest priority) */}
-        {showCompletion &&
-          !showIntroduction &&
-          !showReview &&
-          activityConfig && (
-            <CompletionScreen
-              activityConfig={activityConfig}
-              onDone={handleCompletionDone}
-            />
-          )}
-
-        {/* Introduction Screen - Only show if not completed */}
-        {showIntroduction && !showCompletion && (
-          <IntroductionScreen
-            activityConfig={activityConfig || {}}
-            onBegin={handleBegin}
-            task={task}
-          />
-        )}
-
-        {/* Review Screen */}
-        {showReview && !showIntroduction && !showCompletion && activityData && (
-          <ReviewScreenContainer
-            activityData={activityData}
-            answers={answers}
-            isSubmitting={isSubmitting}
-            onEditQuestion={handleEditQuestion}
-            onSubmit={handleSubmit}
-            bottomInset={insets.bottom}
-            tabBarHeight={60}
-          />
-        )}
-
-        {!showIntroduction &&
-          !showReview &&
-          !showCompletion &&
-          activityData &&
-          activityData.screens.length > 0 && (
-            <View style={styles.questionContainer}>
-              <QuestionScreenContent
-                activityData={activityData}
-                currentScreenIndex={currentScreenIndex}
-                answers={answers}
-                errors={errors}
-                onAnswerChange={handleAnswerChange}
-                bottomInset={insets.bottom}
-                currentScreenValid={currentScreenValid}
-                cameFromReview={cameFromReview}
-                isLastScreen={
-                  currentScreenIndex === activityData.screens.length - 1
-                }
-                onPrevious={handlePrevious}
-                onNext={handleNext}
-                onReviewOrSubmit={handleReviewSubmit}
-                activityConfig={activityConfig ?? undefined}
-                task={task ?? undefined}
-              />
-            </View>
-          )}
+        {renderByMode[mode]()}
       </View>
     </View>
   );
@@ -191,7 +230,7 @@ export default function QuestionsScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f6fa",
+    backgroundColor: AppColors.powderGray,
     margin: 0,
     paddingHorizontal: 0,
     marginHorizontal: 0,
@@ -215,15 +254,15 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...AppFonts.body,
-    color: "#747d8c",
+    color: AppColors.legacy.gray,
     textAlign: "center",
     marginBottom: 16,
   },
   backButton: {
-    backgroundColor: "#ecf0f1",
+    backgroundColor: AppColors.legacy.lightGray,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
   },
-  backButtonText: { ...AppFonts.label, color: "#57606f" },
+  backButtonText: { ...AppFonts.label, color: AppColors.darkGray },
 });
