@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **useQuestionSubmission**
+  - Restored correct create/update DataPointInstance flow: call getInstanceByQuestionId(entityId, questionId), then update or create accordingly; removed mangled block and unused isMountedRef/useEffect
+
 - **iOS Build Stability**
   - Fixed duplicate JKBigInteger symbol errors in iOS build by excluding duplicate files from RNAWSCognito pod
   - Added pre_install and post_install hooks to Podfile to handle Amplify library conflicts
@@ -27,7 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added Node.js global declarations to ESLint config for scripts directory
   - Removed unused fs import from generate-icons script
 
+### Added
+
+- **Docs & utilities**
+  - DOCS/spikes/rnfs-to-expo-inventory.md; packages/task-system rnfsAdapter, taskGrouping utils and tests
+
 ### Changed
+
+- **CI, logging, tests**
+  - PR checks workflow and jest.setup adjustments; useActivityData, useAmplifyState, ActivityService, TaskService, serviceLogger, platformLogger, taskUtils, taskFiltering test updates
 
 - **Documentation Consolidation**
   - Moved `COMMIT_SUMMARY.md` → `DOCS/cleanup/commit-summary-temp-answer-2025-01-05.md`
@@ -48,6 +59,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Exported `deviceLogger` and `platformIcons` functions from package index
   - Updated `DOCS/cleanup/unused-files-analysis.md` with January 9, 2025 cleanup details
   - Reinforces package-first architecture: `@orion/task-system` is single source of truth
+
+### Removed
+
+- **Root package-lock.json**
+  - Deleted (project uses yarn)
 
 ### Changed
 

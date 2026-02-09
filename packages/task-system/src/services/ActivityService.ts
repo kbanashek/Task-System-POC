@@ -1,12 +1,11 @@
 import { DataStore, OpType } from "@aws-amplify/datastore";
 // @ts-ignore - Activity is exported from models/index.js at runtime
-import { ModelName } from "@constants/modelNames";
 import { OperationSource } from "@constants/operationSource";
 import { Activity } from "@models/index";
 import { CreateActivityInput, UpdateActivityInput } from "@task-types/Activity";
+import { dataSubscriptionLogger } from "@utils/logging/dataSubscriptionLogger";
 import { logWithDevice } from "@utils/logging/deviceLogger";
 import { getServiceLogger } from "@utils/logging/serviceLogger";
-import { dataSubscriptionLogger } from "@utils/logging/dataSubscriptionLogger";
 
 type ActivityUpdateData = Omit<UpdateActivityInput, "id" | "_version">;
 
@@ -92,7 +91,14 @@ export class ActivityService {
     try {
       const toDelete = await DataStore.query(Activity, id);
       if (!toDelete) {
-        throw new Error(`Activity with id ${id} not found`);
+        // Idempotent delete: if the record doesn't exist, consider it already deleted
+        getServiceLogger("ActivityService").info(
+          `Activity with id ${id} not found - nothing to delete`,
+          { id },
+          "DATA",
+          "☁️"
+        );
+        return;
       }
 
       await DataStore.delete(toDelete);

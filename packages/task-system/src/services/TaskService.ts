@@ -210,7 +210,14 @@ export class TaskService {
       logger.info("Deleting task from AWS DataStore", { id }, "DATA", "☁️");
       const toDelete = await DataStore.query(DataStoreTask, id);
       if (!toDelete) {
-        throw new Error(`Task with id ${id} not found`);
+        // Idempotent delete: if the record doesn't exist, consider it already deleted
+        logger.info(
+          `Task with id ${id} not found - nothing to delete`,
+          { id },
+          "DATA",
+          "☁️"
+        );
+        return;
       }
 
       await DataStore.delete(toDelete);

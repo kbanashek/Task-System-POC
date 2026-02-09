@@ -4,13 +4,13 @@
 
 import { Task, TaskStatus, TaskType } from "@task-types/Task";
 import {
-  shouldFilterTask,
-  sortTaskArray,
+  getTaskAgeInHours,
+  getTaskExpirationWithRecall,
   getTimeInMinutes,
   isTaskInRecallPeriod,
-  getTaskExpirationWithRecall,
-  getTaskAgeInHours,
   isTimedTaskOlderThanThreshold,
+  shouldFilterTask,
+  sortTaskArray,
 } from "../taskFiltering";
 
 describe("taskFiltering", () => {

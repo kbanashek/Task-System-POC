@@ -40,6 +40,14 @@ jest.mock("@aws-amplify/core", () => ({
   },
 }));
 
+// Mock aws-amplify/storage to avoid native helpers (loadBase64) in Node/Jest environment
+jest.mock('aws-amplify/storage', () => ({
+  uploadData: jest.fn(() => Promise.resolve({ key: 'mock-key' })),
+  getUrl: jest.fn(() => Promise.resolve('https://example.com/mock')),
+  remove: jest.fn(() => Promise.resolve(true)),
+  list: jest.fn(() => Promise.resolve([])),
+}));
+
 jest.mock("@react-native-community/datetimepicker", () => {
   const React = require("react");
   const { View } = require("react-native");
